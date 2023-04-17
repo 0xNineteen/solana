@@ -1638,6 +1638,7 @@ impl ClusterInfo {
             self.stats
                 .packets_sent_gossip_requests_count
                 .add_relaxed(packet_batch.len() as u64);
+            info!("sending gossip packet...");
             sender.send(packet_batch)?;
         }
         self.stats
@@ -2444,6 +2445,10 @@ impl ClusterInfo {
         let mut ping_messages = vec![];
         let mut pong_messages = vec![];
         for (from_addr, packet) in packets {
+
+            let i = format!("{:?}", packet);
+            info!("recieved: {i:.*} from {from_addr:?}", 10);
+
             match packet {
                 Protocol::PullRequest(filter, caller) => {
                     pull_requests.push((from_addr, filter, caller))
@@ -2471,7 +2476,9 @@ impl ClusterInfo {
             pull_responses.retain(|(_, data)| !data.is_empty());
             push_messages.retain(|(_, data)| !data.is_empty());
         }
+        // sends pong back 
         self.handle_batch_ping_messages(ping_messages, recycler, response_sender);
+        // prunes nodes from the crds gossip 
         self.handle_batch_prune_messages(prune_messages, stakes);
         self.handle_batch_push_messages(
             push_messages,
@@ -2545,6 +2552,7 @@ impl ClusterInfo {
             let _st = ScopedTimer::from(&self.stats.verify_gossip_packets_time);
             thread_pool.install(|| packets.into_par_iter().filter_map(verify_packet).collect())
         };
+
         self.stats
             .packets_received_count
             .add_relaxed(counts.iter().sum::<u64>());

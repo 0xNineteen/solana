@@ -49,6 +49,8 @@ impl GossipService {
             gossip_socket.local_addr().unwrap()
         );
         let socket_addr_space = *cluster_info.socket_addr_space();
+
+        // recieves and parses packets
         let t_receiver = streamer::receiver(
             gossip_socket.clone(),
             exit.clone(),
@@ -59,12 +61,17 @@ impl GossipService {
             false,
             None,
         );
+
+        // deserializes packets to Protocol enum Messages (Pull, Push, Prune, ...)
+        // as batches
         let (consume_sender, listen_receiver) = unbounded();
         let t_socket_consume = cluster_info.clone().start_socket_consume_thread(
             request_receiver,
             consume_sender,
             exit.clone(),
         );
+
+        // processes the Protocol messages
         let (response_sender, response_receiver) = unbounded();
         let t_listen = cluster_info.clone().listen(
             bank_forks.clone(),
@@ -73,12 +80,16 @@ impl GossipService {
             should_check_duplicate_instance,
             exit.clone(),
         );
+
+        // periodically queries random nodes in the cluster
         let t_gossip = cluster_info.clone().gossip(
             bank_forks,
             response_sender,
             gossip_validators,
             exit.clone(),
         );
+
+        // batch sends (if any) responses
         let t_responder = streamer::responder(
             "Gossip",
             gossip_socket,
@@ -228,7 +239,7 @@ pub fn get_multi_client(
     )
 }
 
-fn spy(
+pub fn spy(
     spy_ref: Arc<ClusterInfo>,
     num_nodes: Option<usize>,
     timeout: Duration,
