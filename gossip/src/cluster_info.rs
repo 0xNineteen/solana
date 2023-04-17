@@ -182,7 +182,7 @@ pub struct ClusterInfo {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, AbiExample)]
-pub(crate) struct PruneData {
+pub struct PruneData {
     /// Pubkey of the node that sent this prune data
     pubkey: Pubkey,
     /// Pubkeys of nodes that should be pruned
@@ -276,7 +276,7 @@ pub(crate) type Ping = ping_pong::Ping<[u8; GOSSIP_PING_TOKEN_SIZE]>;
 #[frozen_abi(digest = "FsZnSeTYNH7F51AxTaKUixXxjT6if2ThmPN1mhDWtXZM")]
 #[derive(Serialize, Deserialize, Debug, AbiEnumVisitor, AbiExample)]
 #[allow(clippy::large_enum_variant)]
-pub(crate) enum Protocol {
+pub enum Protocol {
     /// Gossip protocol messages
     PullRequest(CrdsFilter, CrdsValue),
     PullResponse(Pubkey, Vec<CrdsValue>),
@@ -290,7 +290,7 @@ pub(crate) enum Protocol {
 }
 
 impl Protocol {
-    fn par_verify(self, stats: &GossipStats) -> Option<Self> {
+    pub fn par_verify(self, stats: &GossipStats) -> Option<Self> {
         match self {
             Protocol::PullRequest(_, ref caller) => {
                 if caller.verify() {
@@ -380,7 +380,7 @@ impl Sanitize for Protocol {
 
 // Retains only CRDS values associated with nodes with enough stake.
 // (some crds types are exempted)
-fn retain_staked(values: &mut Vec<CrdsValue>, stakes: &HashMap<Pubkey, u64>) {
+pub fn retain_staked(values: &mut Vec<CrdsValue>, stakes: &HashMap<Pubkey, u64>) {
     values.retain(|value| {
         match value.data {
             CrdsData::ContactInfo(_) => true,
