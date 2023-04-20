@@ -349,6 +349,7 @@ solana-storage-proto = { path = "storage-proto", version = "=1.16.0" }
 solana-streamer = { path = "streamer", version = "=1.16.0" }
 solana-sys-tuner = { path = "sys-tuner", version = "=1.16.0" }
 solana-test-validator = { path = "test-validator", version = "=1.16.0" }
+solana-validator = { path = "validator" }
 solana-thin-client = { path = "thin-client", version = "=1.16.0" }
 solana-tpu-client = { path = "tpu-client", version = "=1.16.0", default-features = false }
 solana-transaction-status = { path = "transaction-status", version = "=1.16.0" }

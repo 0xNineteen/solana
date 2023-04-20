@@ -170,7 +170,7 @@ pub struct ClusterInfo {
     entrypoints: RwLock<Vec<LegacyContactInfo>>,
     outbound_budget: DataBudget,
     my_contact_info: RwLock<ContactInfo>,
-    ping_cache: Mutex<PingCache>,
+    pub ping_cache: Mutex<PingCache>,
     stats: GossipStats,
     socket: UdpSocket,
     local_message_pending_push_queue: Mutex<Vec<CrdsValue>>,
@@ -1638,7 +1638,7 @@ impl ClusterInfo {
             self.stats
                 .packets_sent_gossip_requests_count
                 .add_relaxed(packet_batch.len() as u64);
-            info!("sending gossip packet...");
+            // info!("sending gossip packet...");
             sender.send(packet_batch)?;
         }
         self.stats
@@ -2446,8 +2446,8 @@ impl ClusterInfo {
         let mut pong_messages = vec![];
         for (from_addr, packet) in packets {
 
-            let i = format!("{:?}", packet);
-            info!("recieved: {i:.*} from {from_addr:?}", 10);
+            // let i = format!("{:?}", packet);
+            // info!("recieved: {i:.*} from {from_addr:?}", 10);
 
             match packet {
                 Protocol::PullRequest(filter, caller) => {

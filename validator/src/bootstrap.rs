@@ -454,7 +454,7 @@ pub fn attempt_download_genesis_and_snapshot(
 // Populates `vetted_rpc_nodes` with a list of RPC nodes that are ready to be
 // used for downloading latest snapshots and/or the genesis block. Guaranteed to
 // find at least one viable node or terminate the process.
-fn get_vetted_rpc_nodes(
+pub fn get_vetted_rpc_nodes(
     vetted_rpc_nodes: &mut Vec<(ContactInfo, Option<SnapshotHash>, RpcClient)>,
     cluster_info: &Arc<ClusterInfo>,
     cluster_entrypoints: &[ContactInfo],
