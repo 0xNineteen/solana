@@ -1945,6 +1945,7 @@ pub(crate) struct ShrinkAncientStats {
     pub(crate) random_shrink: AtomicU64,
     pub(crate) slots_considered: AtomicU64,
     pub(crate) ancient_scanned: AtomicU64,
+    pub(crate) second_pass_one_ref: AtomicU64,
 }
 
 #[derive(Debug, Default)]
@@ -2226,6 +2227,11 @@ impl ShrinkAncientStats {
                 (
                     "total_us",
                     self.total_us.swap(0, Ordering::Relaxed) as i64,
+                    i64
+                ),
+                (
+                    "second_pass_one_ref",
+                    self.second_pass_one_ref.swap(0, Ordering::Relaxed) as i64,
                     i64
                 ),
             );
@@ -4023,6 +4029,8 @@ impl AccountsDb {
                 .fetch_add(1, Ordering::Relaxed);
             for pubkey in shrink_collect.unrefed_pubkeys {
                 if let Some(locked_entry) = self.accounts_index.get_account_read_entry(pubkey) {
+                    // pubkeys in `unrefed_pubkeys` were unref'd in `shrink_collect` above under the assumption that we would shrink everything.
+                    // Since shrink is not occurring, we need to addref the pubkeys to get the system back to the prior state since the account still exists at this slot.
                     locked_entry.addref();
                 }
             }
@@ -5543,7 +5551,10 @@ impl AccountsDb {
                 min = std::cmp::min(store.accounts.capacity(), min);
                 avail += 1;
 
-                if store.accounts.capacity() >= min_size && store.accounts.capacity() < max_size {
+                if store.accounts.is_recyclable()
+                    && store.accounts.capacity() >= min_size
+                    && store.accounts.capacity() < max_size
+                {
                     let ret = recycle_stores.remove_entry(i);
                     drop(recycle_stores);
                     let old_id = ret.append_vec_id();
@@ -8083,7 +8094,7 @@ impl AccountsDb {
     where
         I: Iterator<Item = &'a (Slot, AccountInfo)>,
     {
-        self.storage.assert_no_shrink_in_progress();
+        assert!(self.storage.no_shrink_in_progress());
 
         let mut dead_slots = HashSet::new();
         let mut new_shrink_candidates: ShrinkCandidates = HashMap::new();

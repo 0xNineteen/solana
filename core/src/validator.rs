@@ -693,8 +693,8 @@ impl Validator {
                     snapshot_package_sender.clone(),
                     snapshot_package_receiver,
                     starting_snapshot_hashes,
-                    &exit,
-                    &cluster_info,
+                    exit.clone(),
+                    cluster_info.clone(),
                     config.snapshot_config.clone(),
                     enable_gossip_push,
                 );
@@ -711,8 +711,8 @@ impl Validator {
             accounts_package_sender.clone(),
             accounts_package_receiver,
             snapshot_package_sender,
-            &exit,
-            &cluster_info,
+            exit.clone(),
+            cluster_info.clone(),
             config.known_validators.clone(),
             config.halt_on_known_validators_accounts_hash_mismatch,
             config.accounts_hash_fault_injector,
@@ -734,7 +734,7 @@ impl Validator {
         let last_full_snapshot_slot = starting_snapshot_hashes.map(|x| x.full.0 .0);
         let accounts_background_service = AccountsBackgroundService::new(
             bank_forks.clone(),
-            &exit,
+            exit.clone(),
             AbsRequestHandlers {
                 snapshot_request_handler,
                 pruned_banks_request_handler,
@@ -835,7 +835,7 @@ impl Validator {
                 None,
                 bank.ticks_per_slot(),
                 &id,
-                &blockstore,
+                blockstore.clone(),
                 blockstore.get_new_shred_signal(0),
                 &leader_schedule_cache,
                 &genesis_config.poh_config,

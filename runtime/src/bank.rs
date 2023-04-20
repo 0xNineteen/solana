@@ -64,7 +64,7 @@ use {
         rent_collector::{CollectedInfo, RentCollector},
         rent_debits::RentDebits,
         runtime_config::RuntimeConfig,
-        serde_snapshot::{SerdeAccountsHash, SerdeIncrementalAccountsHash},
+        serde_snapshot::BankIncrementalSnapshotPersistence,
         snapshot_hash::SnapshotHash,
         sorted_storages::SortedStorages,
         stake_account::{self, StakeAccount},
@@ -76,7 +76,6 @@ use {
         stakes::{InvalidCacheEntryReason, Stakes, StakesCache, StakesEnum},
         status_cache::{SlotDelta, StatusCache},
         storable_accounts::StorableAccounts,
-        system_instruction_processor::{get_system_account_kind, SystemAccountKind},
         transaction_batch::TransactionBatch,
         transaction_error_metrics::TransactionErrorMetrics,
         vote_account::{VoteAccount, VoteAccountsHashMap},
@@ -164,6 +163,7 @@ use {
     solana_stake_program::stake_state::{
         self, InflationPointCalculationEvent, PointValue, StakeState,
     },
+    solana_system_program::{get_system_account_kind, SystemAccountKind},
     solana_vote_program::vote_state::{VoteState, VoteStateVersions},
     std::{
         borrow::Cow,
@@ -171,7 +171,7 @@ use {
         collections::{HashMap, HashSet},
         convert::{TryFrom, TryInto},
         fmt, mem,
-        ops::{AddAssign, Deref, RangeInclusive},
+        ops::{AddAssign, RangeInclusive},
         path::PathBuf,
         rc::Rc,
         sync::{
@@ -187,12 +187,12 @@ use {
 };
 
 /// params to `verify_accounts_hash`
-pub struct VerifyAccountsHashConfig {
-    pub test_hash_calculation: bool,
-    pub ignore_mismatch: bool,
-    pub require_rooted_bank: bool,
-    pub run_in_background: bool,
-    pub store_hash_raw_data_for_debug: bool,
+struct VerifyAccountsHashConfig {
+    test_hash_calculation: bool,
+    ignore_mismatch: bool,
+    require_rooted_bank: bool,
+    run_in_background: bool,
+    store_hash_raw_data_for_debug: bool,
 }
 
 mod address_lookup_table;
@@ -215,25 +215,6 @@ struct RentMetrics {
     hash_us: AtomicU64,
     store_us: AtomicU64,
     count: AtomicUsize,
-}
-
-/// Incremental snapshots only calculate their accounts hash based on the account changes WITHIN the incremental slot range.
-/// So, we need to keep track of the full snapshot expected accounts hash results.
-/// We also need to keep track of the hash and capitalization specific to the incremental snapshot slot range.
-/// The capitalization we calculate for the incremental slot will NOT be consistent with the bank's capitalization.
-/// It is not feasible to calculate a capitalization delta that is correct given just incremental slots account data and the full snapshot's capitalization.
-#[derive(Serialize, Deserialize, AbiExample, Clone, Debug, Default, PartialEq, Eq)]
-pub struct BankIncrementalSnapshotPersistence {
-    /// slot of full snapshot
-    pub full_slot: Slot,
-    /// accounts hash from the full snapshot
-    pub full_hash: SerdeAccountsHash,
-    /// capitalization from the full snapshot
-    pub full_capitalization: u64,
-    /// hash of the accounts in the incremental snapshot slot range, including zero-lamport accounts
-    pub incremental_hash: SerdeIncrementalAccountsHash,
-    /// capitalization of the accounts in the incremental snapshot slot range
-    pub incremental_capitalization: u64,
 }
 
 pub type BankStatusCache = StatusCache<Result<()>>;
@@ -2759,8 +2740,8 @@ impl Bank {
                 invalid_vote_keys.insert(vote_pubkey, InvalidCacheEntryReason::WrongOwner);
                 return None;
             }
-            let vote_state = match vote_account.vote_state().deref() {
-                Ok(vote_state) => vote_state.clone(),
+            let vote_state = match vote_account.vote_state().cloned() {
+                Ok(vote_state) => vote_state,
                 Err(_) => {
                     invalid_vote_keys.insert(vote_pubkey, InvalidCacheEntryReason::BadState);
                     return None;
@@ -7013,12 +6994,27 @@ impl Bank {
         epoch_accounts_hash
     }
 
+    pub fn run_final_hash_calc(&self, on_halt_store_hash_raw_data_for_debug: bool) {
+        self.force_flush_accounts_cache();
+        // note that this slot may not be a root
+        _ = self.verify_accounts_hash(
+            None,
+            VerifyAccountsHashConfig {
+                test_hash_calculation: false,
+                ignore_mismatch: true,
+                require_rooted_bank: false,
+                run_in_background: false,
+                store_hash_raw_data_for_debug: on_halt_store_hash_raw_data_for_debug,
+            },
+        );
+    }
+
     /// Recalculate the hash_internal_state from the account stores. Would be used to verify a
     /// snapshot.
     /// return true if all is good
     /// Only called from startup or test code.
     #[must_use]
-    pub fn verify_accounts_hash(
+    fn verify_accounts_hash(
         &self,
         base: Option<(Slot, /*capitalization*/ u64)>,
         config: VerifyAccountsHashConfig,

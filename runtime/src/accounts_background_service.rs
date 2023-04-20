@@ -366,7 +366,6 @@ impl SnapshotRequestHandler {
                     accounts_package_type,
                     &snapshot_root_bank,
                     &bank_snapshot_info,
-                    &self.snapshot_config.bank_snapshots_dir,
                     &self.snapshot_config.full_snapshot_archives_dir,
                     &self.snapshot_config.incremental_snapshot_archives_dir,
                     snapshot_storages,
@@ -402,6 +401,7 @@ impl SnapshotRequestHandler {
         snapshot_utils::purge_old_bank_snapshots(
             &self.snapshot_config.bank_snapshots_dir,
             MAX_BANK_SNAPSHOTS_TO_RETAIN,
+            None,
         );
         purge_old_snapshots_time.stop();
         total_time.stop();
@@ -528,12 +528,11 @@ pub struct AccountsBackgroundService {
 impl AccountsBackgroundService {
     pub fn new(
         bank_forks: Arc<RwLock<BankForks>>,
-        exit: &Arc<AtomicBool>,
+        exit: Arc<AtomicBool>,
         request_handlers: AbsRequestHandlers,
         test_hash_calculation: bool,
         mut last_full_snapshot_slot: Option<Slot>,
     ) -> Self {
-        let exit = exit.clone();
         let mut last_cleaned_block_height = 0;
         let mut removed_slots_count = 0;
         let mut total_remove_slots_time = 0;

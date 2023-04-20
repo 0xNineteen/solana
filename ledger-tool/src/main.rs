@@ -520,7 +520,7 @@ fn graph_forks(bank_forks: &BankForks, config: &GraphConfig) -> String {
             .sum();
         for (stake, vote_account) in bank.vote_accounts().values() {
             let vote_state = vote_account.vote_state();
-            let vote_state = vote_state.as_ref().unwrap_or(&default_vote_state);
+            let vote_state = vote_state.unwrap_or(&default_vote_state);
             if let Some(last_vote) = vote_state.votes.iter().last() {
                 let entry = last_votes.entry(vote_state.node_pubkey).or_insert((
                     last_vote.slot(),
@@ -561,7 +561,7 @@ fn graph_forks(bank_forks: &BankForks, config: &GraphConfig) -> String {
         loop {
             for (_, vote_account) in bank.vote_accounts().values() {
                 let vote_state = vote_account.vote_state();
-                let vote_state = vote_state.as_ref().unwrap_or(&default_vote_state);
+                let vote_state = vote_state.unwrap_or(&default_vote_state);
                 if let Some(last_vote) = vote_state.votes.iter().last() {
                     let validator_votes = all_votes.entry(vote_state.node_pubkey).or_default();
                     validator_votes
@@ -1282,7 +1282,7 @@ fn load_bank_forks(
     let exit = Arc::new(AtomicBool::new(false));
     let accounts_background_service = AccountsBackgroundService::new(
         bank_forks.clone(),
-        &exit,
+        exit.clone(),
         abs_request_handler,
         process_options.accounts_db_test_hash_calculation,
         None,
