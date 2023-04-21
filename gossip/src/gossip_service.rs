@@ -271,7 +271,9 @@ pub fn spy(
         };
 
         let found_node_by_gossip_addr = if let Some(gossip_addr) = find_node_by_gossip_addr {
-            all_peers.iter().any(|x| x.gossip == *gossip_addr)
+            all_peers
+                .iter()
+                .any(|node| node.gossip().ok() == Some(*gossip_addr))
         } else {
             false
         };
