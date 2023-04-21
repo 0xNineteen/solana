@@ -120,6 +120,7 @@ pub fn load_bank_forks(
     };
 
     let (bank_forks, starting_snapshot_hashes) = if snapshot_present {
+        info!("loading bankforks from snapshot");
         bank_forks_from_snapshot(
             genesis_config,
             account_paths,

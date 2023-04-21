@@ -367,7 +367,7 @@ impl Default for ValidatorStartProgress {
     }
 }
 
-struct BlockstoreRootScan {
+pub struct BlockstoreRootScan {
     thread: Option<JoinHandle<Result<(), BlockstoreError>>>,
 }
 
@@ -401,7 +401,7 @@ impl BlockstoreRootScan {
 }
 
 #[derive(Default)]
-struct TransactionHistoryServices {
+pub struct TransactionHistoryServices {
     transaction_status_sender: Option<TransactionStatusSender>,
     transaction_status_service: Option<TransactionStatusService>,
     max_complete_transaction_status_slot: Arc<AtomicU64>,
@@ -1475,7 +1475,7 @@ fn blockstore_options_from_config(config: &ValidatorConfig) -> BlockstoreOptions
 }
 
 #[allow(clippy::type_complexity)]
-fn load_blockstore(
+pub fn load_blockstore(
     config: &ValidatorConfig,
     ledger_path: &Path,
     exit: &Arc<AtomicBool>,
@@ -1574,13 +1574,18 @@ fn load_blockstore(
             TransactionHistoryServices::default()
         };
 
+    // note: bankforks also holds a bank (created from snapshots - rebuild_bank_from_unarchived_snapshots)
+    // - deserializes snapshots to bank 
+    // - creates bankforks from snapshots/bank
+    // - loads snapshot into blockstore
+    info!("loading bank forks...");
     let (bank_forks, mut leader_schedule_cache, starting_snapshot_hashes) =
         bank_forks_utils::load_bank_forks(
             &genesis_config,
-            &blockstore,
-            config.account_paths.clone(),
+            &blockstore, // just a file database rn
+            config.account_paths.clone(), 
             config.account_shrink_paths.clone(),
-            Some(&config.snapshot_config),
+            Some(&config.snapshot_config), // snapshots path to load from (calls bank_from_snapshot_archives)
             &process_options,
             transaction_history_services
                 .cache_block_meta_sender
@@ -1588,6 +1593,7 @@ fn load_blockstore(
             accounts_update_notifier,
             exit,
         );
+    info!("bank forks loaded...");
 
     // Before replay starts, set the callbacks in each of the banks in BankForks so that
     // all dropped banks come through the `pruned_banks_receiver` channel. This way all bank
