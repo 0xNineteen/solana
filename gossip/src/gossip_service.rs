@@ -72,6 +72,7 @@ impl GossipService {
         );
 
         // processes the Protocol messages
+        // just uses bank to get epoch duration and other small metadata
         let (response_sender, response_receiver) = unbounded();
         let t_listen = cluster_info.clone().listen(
             bank_forks.clone(),
@@ -82,6 +83,7 @@ impl GossipService {
         );
 
         // periodically queries random nodes in the cluster
+        // same here
         let t_gossip = cluster_info.clone().gossip(
             bank_forks,
             response_sender,

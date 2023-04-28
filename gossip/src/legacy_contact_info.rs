@@ -21,25 +21,25 @@ use {
 pub struct LegacyContactInfo {
     pub id: Pubkey,
     /// gossip address
-    gossip: SocketAddr,
+    pub gossip: SocketAddr,
     /// address to connect to for replication
-    tvu: SocketAddr,
+    pub tvu: SocketAddr,
     /// address to forward shreds to
-    tvu_forwards: SocketAddr,
+    pub tvu_forwards: SocketAddr,
     /// address to send repair responses to
-    repair: SocketAddr,
+    pub repair: SocketAddr,
     /// transactions address
-    tpu: SocketAddr,
+    pub tpu: SocketAddr,
     /// address to forward unprocessed transactions to
-    tpu_forwards: SocketAddr,
+    pub tpu_forwards: SocketAddr,
     /// address to which to send bank state requests
-    tpu_vote: SocketAddr,
+    pub tpu_vote: SocketAddr,
     /// address to which to send JSON-RPC requests
-    rpc: SocketAddr,
+    pub rpc: SocketAddr,
     /// websocket for JSON-RPC push notifications
-    rpc_pubsub: SocketAddr,
+    pub rpc_pubsub: SocketAddr,
     /// address to send repair requests to
-    serve_repair: SocketAddr,
+    pub serve_repair: SocketAddr,
     /// latest wallclock picked
     pub wallclock: u64,
     /// node shred version

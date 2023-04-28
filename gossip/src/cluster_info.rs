@@ -774,6 +774,9 @@ impl ClusterInfo {
             })
             .collect();
 
+        let n_nodes = nodes.len();
+        let nodes: Vec<_> = nodes.into_iter().take(10).collect();
+
         format!(
             "RPC Address       |Age(ms)| Node identifier                              \
              | Version | RPC  |PubSub|ShredVer\n\
@@ -782,7 +785,7 @@ impl ClusterInfo {
              {}\
              RPC Enabled Nodes: {}",
             nodes.join(""),
-            nodes.len(),
+            n_nodes,
         )
     }
 
@@ -843,6 +846,9 @@ impl ClusterInfo {
             })
             .collect();
 
+        let n_nodes = nodes.len();
+        let nodes: Vec<_> = nodes.into_iter().take(10).collect();
+
         format!(
             "IP Address        |Age(ms)| Node identifier                              \
              | Version |Gossip|TPUvote| TPU  |TPUfwd| TVU  |TVUfwd|Repair|ServeR|ShredVer\n\
@@ -851,7 +857,7 @@ impl ClusterInfo {
              {}\
              Nodes: {}{}{}",
             nodes.join(""),
-            nodes.len().saturating_sub(shred_spy_nodes),
+            n_nodes.saturating_sub(shred_spy_nodes),
             if total_spy_nodes > 0 {
                 format!("\nSpies: {total_spy_nodes}")
             } else {
@@ -2296,7 +2302,7 @@ impl ClusterInfo {
         let origins: HashSet<_> = {
             let _st = ScopedTimer::from(&self.stats.process_push_message);
             let now = timestamp();
-            self.gossip.process_push_message(messages, now)
+            self.gossip.process_push_message(messages, now) // !
         };
         // Generate prune messages.
         let self_pubkey = self.id();

@@ -1211,7 +1211,7 @@ impl Validator {
         self.join();
     }
 
-    fn print_node_info(node: &Node) {
+    pub fn print_node_info(node: &Node) {
         info!("{:?}", node.info);
         info!(
             "local gossip address: {}",
