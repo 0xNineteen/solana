@@ -143,9 +143,9 @@ impl FetchStage {
         tpu_forwards_sockets: Vec<Arc<UdpSocket>>,
         tpu_vote_sockets: Vec<Arc<UdpSocket>>,
         exit: &Arc<AtomicBool>,
-        sender: &PacketBatchSender,
-        vote_sender: &PacketBatchSender,
-        forward_sender: &PacketBatchSender,
+        sender: &PacketBatchSender, // forwards shreds
+        vote_sender: &PacketBatchSender, // forward vote shreds 
+        forward_sender: &PacketBatchSender, // forward forward_shreds
         forward_receiver: PacketBatchReceiver,
         poh_recorder: &Arc<RwLock<PohRecorder>>,
         coalesce: Duration,

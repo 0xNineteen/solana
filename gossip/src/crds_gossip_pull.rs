@@ -429,6 +429,10 @@ impl CrdsGossipPull {
         let num_items = MIN_NUM_BLOOM_ITEMS.max(num_items);
         let filters = CrdsFilterSet::new(num_items, bloom_size);
         thread_pool.install(|| {
+            // all crds values 
+            // recently purged crds values 
+            // & failed inserts 
+            // => one bloom filter
             crds.par_values()
                 .with_min_len(PAR_MIN_LENGTH)
                 .map(|v| v.value_hash)

@@ -33,9 +33,9 @@ pub struct GossipService {
 
 impl GossipService {
     pub fn new(
-        cluster_info: &Arc<ClusterInfo>,
-        bank_forks: Option<Arc<RwLock<BankForks>>>,
-        gossip_socket: UdpSocket,
+        cluster_info: &Arc<ClusterInfo>, // ports and config stuff
+        bank_forks: Option<Arc<RwLock<BankForks>>>, // ?
+        gossip_socket: UdpSocket, // created from Node::new_localhost
         gossip_validators: Option<HashSet<Pubkey>>,
         should_check_duplicate_instance: bool,
         stats_reporter_sender: Option<Sender<Box<dyn FnOnce() + Send>>>,
@@ -49,6 +49,8 @@ impl GossipService {
             gossip_socket.local_addr().unwrap()
         );
         let socket_addr_space = *cluster_info.socket_addr_space();
+
+        // recieves packets (from gossip socket) and sends them to t_socket_consume
         let t_receiver = streamer::receiver(
             gossip_socket.clone(),
             exit.clone(),
@@ -60,12 +62,22 @@ impl GossipService {
             None,
         );
         let (consume_sender, listen_receiver) = unbounded();
+
+        // Consumes packets received from the socket, deserializing, sanitizing and
+        // verifying them and then sending them down the channel for the actual
+        // handling of requests/messages. (sends to t_listen)
         let t_socket_consume = cluster_info.clone().start_socket_consume_thread(
             request_receiver,
             consume_sender,
             exit.clone(),
         );
+
         let (response_sender, response_receiver) = unbounded();
+
+        // [t_listen, and t_gossip] send messages to t_responder
+        // Process messages from the network
+            // filters packets into Protocol::PullRequest( ... enum type 
+            // 
         let t_listen = cluster_info.clone().listen(
             bank_forks.clone(),
             listen_receiver,
@@ -73,12 +85,17 @@ impl GossipService {
             should_check_duplicate_instance,
             exit.clone(),
         );
+
+        // this randomly asks nodes in gossip for things (flushes push/pull reqs) (i think ... ?)
         let t_gossip = cluster_info.clone().gossip(
             bank_forks,
             response_sender,
             gossip_validators,
             exit.clone(),
         );
+
+        // recieves (packets, addresses) and then calls batch_send on them
+        // can also use sendmmsg syscall to write to multiple sockets in a single syscall 
         let t_responder = streamer::responder(
             "Gossip",
             gossip_socket,
@@ -127,7 +144,7 @@ pub fn discover_cluster(
 
 pub fn discover(
     keypair: Option<Keypair>,
-    entrypoint: Option<&SocketAddr>,
+    entrypoint: Option<&SocketAddr>, // first validator to query to get other nodes 
     num_nodes: Option<usize>, // num_nodes only counts validators, excludes spy nodes
     timeout: Duration,
     find_node_by_pubkey: Option<Pubkey>,
@@ -159,6 +176,8 @@ pub fn discover(
     }
     let _ip_echo_server = ip_echo
         .map(|tcp_listener| solana_net_utils::ip_echo_server(tcp_listener, Some(my_shred_version)));
+    
+    // this waits until we find num_nodes nodes 
     let (met_criteria, elapsed, all_peers, tvu_peers) = spy(
         spy_ref.clone(),
         num_nodes,

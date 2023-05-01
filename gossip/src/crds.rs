@@ -206,13 +206,37 @@ impl Crds {
         }
     }
 
+    // maintains a mapping of the most recent information from a node 
+    
+    // for a crdsValue 
+    // insert it into the table [now have (table_index, value)] 
+        // NOTE: key is the self.table entry index 
+        // NOTE: self.entries is [cursor_index, table_index]
+
+        // if empty (key dne)
+        // insert shards (key, value)
+        // insert specific_dict [slots, votes] (cursor_index, key)
+        // insert entries (cursor_index, key)
+        // cursor++
+        // insert (key, value) in table 
+
+    // get all votes since a given index 
+        // for (cursor_index, index) in self.votes 
+            // self.table.index(index)
+
+    // inserts only record the latest values 
+        // only one contact information is stored per pubkey
+
+    // qs: whats the point of the cursor? cant everything be done with self.table.entry_index?
+        // cursor is only used in cluster_slots 
+
     pub fn insert(
         &mut self,
         value: CrdsValue,
         now: u64,
         route: GossipRoute,
     ) -> Result<(), CrdsError> {
-        let label = value.label();
+        let label = value.label(); // CRDSValue 
         let pubkey = value.pubkey();
         let value = VersionedCrdsValue::new(value, self.cursor, now);
         match self.table.entry(label) {

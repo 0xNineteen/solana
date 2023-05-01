@@ -120,9 +120,9 @@ impl Tpu {
             tpu_forwards_sockets,
             tpu_vote_sockets,
             exit,
-            &packet_sender,
-            &vote_packet_sender,
-            &forwarded_packet_sender,
+            &packet_sender, // tpu shreds
+            &vote_packet_sender, // tpu votes 
+            &forwarded_packet_sender, // tpu forwarded_shreds
             forwarded_packet_receiver,
             poh_recorder,
             tpu_coalesce,

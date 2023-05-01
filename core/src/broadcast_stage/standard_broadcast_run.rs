@@ -254,6 +254,7 @@ impl StandardBroadcastRun {
         // 2) Convert entries to shreds and coding shreds
         let is_last_in_slot = last_tick_height == bank.max_tick_height();
         let reference_tick = bank.tick_height() % bank.ticks_per_slot();
+        // does not use the merkle variant here
         let (data_shreds, coding_shreds) = self
             .entries_to_shreds(
                 keypair,

@@ -383,6 +383,7 @@ impl BankingStage {
                         ),
                         _ => (
                             non_vote_receiver.clone(),
+                            // tmp storage for the txs 
                             UnprocessedTransactionStorage::new_transaction_storage(
                                 UnprocessedPacketBatches::with_capacity(batch_limit),
                                 ThreadType::Transactions,
@@ -497,6 +498,7 @@ impl BankingStage {
         }
     }
 
+    // packets are already sig verified here
     fn process_loop(
         packet_receiver: &mut PacketReceiver,
         decision_maker: &DecisionMaker,
@@ -515,6 +517,7 @@ impl BankingStage {
             if !unprocessed_transaction_storage.is_empty()
                 || last_metrics_update.elapsed() >= SLOT_BOUNDARY_CHECK_PERIOD
             {
+                // this actually processes the packets
                 let (_, process_buffered_packets_time) = measure!(
                     Self::process_buffered_packets(
                         decision_maker,
@@ -534,6 +537,8 @@ impl BankingStage {
 
             tracer_packet_stats.report(1000);
 
+            // continually store txs in unprocessed_transaction_storage
+            // also deserializes them into txs 
             match packet_receiver.receive_and_buffer_packets(
                 &mut unprocessed_transaction_storage,
                 &mut banking_stage_stats,

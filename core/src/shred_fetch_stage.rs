@@ -35,7 +35,7 @@ impl ShredFetchStage {
         bank_forks: &RwLock<BankForks>,
         shred_version: u16,
         name: &'static str,
-        flags: PacketFlags,
+        flags: PacketFlags, // what to do with the packets (repair, forward, discard, ...)
         repair_context: Option<(&UdpSocket, &ClusterInfo)>,
         turbine_disabled: Arc<AtomicBool>,
     ) {
@@ -70,6 +70,7 @@ impl ShredFetchStage {
             }
             stats.shred_count += packet_batch.len();
 
+            // handle repair ping responses (by sending pongs)
             if let Some((udp_socket, _)) = repair_context {
                 debug_assert_eq!(flags, PacketFlags::REPAIR);
                 debug_assert!(keypair.is_some());
@@ -89,6 +90,8 @@ impl ShredFetchStage {
                 |shred_slot| should_drop_merkle_shreds(shred_slot, &root_bank);
             let turbine_disabled = turbine_disabled.load(Ordering::Relaxed);
             for packet in packet_batch.iter_mut().filter(|p| !p.meta().discard()) {
+                // if turbine / forwarding is disabled or should discard == set discard 
+                // should_discard_shred == old slot, cant deserialize shred, is merkle and should drop
                 if turbine_disabled
                     || should_discard_shred(
                         packet,
@@ -140,6 +143,8 @@ impl ShredFetchStage {
                 )
             })
             .collect();
+
+        // sets discard on packet if invalid and/or if turbine is disabled ...
         let modifier_hdl = Builder::new()
             .name("solTvuFetchPMod".to_string())
             .spawn(move || {
