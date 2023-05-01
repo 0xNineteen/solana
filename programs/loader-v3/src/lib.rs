@@ -37,7 +37,7 @@ use {
     },
 };
 
-fn get_state(data: &[u8]) -> Result<&LoaderV3State, InstructionError> {
+pub fn get_state(data: &[u8]) -> Result<&LoaderV3State, InstructionError> {
     unsafe {
         let data = data
             .get(0..LoaderV3State::program_data_offset())
@@ -691,7 +691,7 @@ mod tests {
                 authority_address,
             })
             .unwrap();
-        program_account.data_mut()[loader_v3::LoaderV3State::program_data_offset()..]
+        program_account.data_as_mut_slice()[loader_v3::LoaderV3State::program_data_offset()..]
             .copy_from_slice(&elf_bytes);
         program_account
     }
