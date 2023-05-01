@@ -226,6 +226,8 @@ impl ContactInfo {
     set_socket!(set_tvu, SOCKET_TAG_TVU);
     set_socket!(set_tvu_forwards, SOCKET_TAG_TVU_FORWARDS);
 
+    remove_socket!(remove_tpu_vote, SOCKET_TAG_TPU_VOTE);
+    remove_socket!(remove_repair, SOCKET_TAG_REPAIR);
     remove_socket!(remove_serve_repair, SOCKET_TAG_SERVE_REPAIR);
     remove_socket!(remove_tpu, SOCKET_TAG_TPU, SOCKET_TAG_TPU_QUIC);
     remove_socket!(

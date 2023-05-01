@@ -118,6 +118,7 @@ pub fn download_then_check_genesis_hash(
         no_genesis_fetch,
         use_progress_bar,
     )?;
+    // info!("genesis config: {genesis_config:?}");
 
     set_and_verify_expected_genesis_hash(genesis_config, expected_genesis_hash, rpc_client)
 }

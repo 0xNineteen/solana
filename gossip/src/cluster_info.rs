@@ -170,7 +170,7 @@ pub struct ClusterInfo {
     entrypoints: RwLock<Vec<LegacyContactInfo>>,
     outbound_budget: DataBudget,
     my_contact_info: RwLock<ContactInfo>,
-    ping_cache: Mutex<PingCache>,
+    pub ping_cache: Mutex<PingCache>,
     stats: GossipStats,
     socket: UdpSocket,
     local_message_pending_push_queue: Mutex<Vec<CrdsValue>>,
@@ -182,7 +182,7 @@ pub struct ClusterInfo {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, AbiExample)]
-pub(crate) struct PruneData {
+pub struct PruneData {
     /// Pubkey of the node that sent this prune data
     pubkey: Pubkey,
     /// Pubkeys of nodes that should be pruned
@@ -276,7 +276,7 @@ pub(crate) type Ping = ping_pong::Ping<[u8; GOSSIP_PING_TOKEN_SIZE]>;
 #[frozen_abi(digest = "FsZnSeTYNH7F51AxTaKUixXxjT6if2ThmPN1mhDWtXZM")]
 #[derive(Serialize, Deserialize, Debug, AbiEnumVisitor, AbiExample)]
 #[allow(clippy::large_enum_variant)]
-pub(crate) enum Protocol {
+pub enum Protocol {
     /// Gossip protocol messages
     PullRequest(CrdsFilter, CrdsValue),
     PullResponse(Pubkey, Vec<CrdsValue>),
@@ -290,7 +290,7 @@ pub(crate) enum Protocol {
 }
 
 impl Protocol {
-    fn par_verify(self, stats: &GossipStats) -> Option<Self> {
+    pub fn par_verify(self, stats: &GossipStats) -> Option<Self> {
         match self {
             Protocol::PullRequest(_, ref caller) => {
                 if caller.verify() {
@@ -380,7 +380,7 @@ impl Sanitize for Protocol {
 
 // Retains only CRDS values associated with nodes with enough stake.
 // (some crds types are exempted)
-fn retain_staked(values: &mut Vec<CrdsValue>, stakes: &HashMap<Pubkey, u64>) {
+pub fn retain_staked(values: &mut Vec<CrdsValue>, stakes: &HashMap<Pubkey, u64>) {
     values.retain(|value| {
         match value.data {
             CrdsData::ContactInfo(_) => true,
@@ -784,6 +784,9 @@ impl ClusterInfo {
             })
             .collect();
 
+        let n_nodes = nodes.len();
+        let nodes: Vec<_> = nodes.into_iter().take(10).collect();
+
         format!(
             "RPC Address       |Age(ms)| Node identifier                              \
              | Version | RPC  |PubSub|ShredVer\n\
@@ -792,7 +795,7 @@ impl ClusterInfo {
              {}\
              RPC Enabled Nodes: {}",
             nodes.join(""),
-            nodes.len(),
+            n_nodes,
         )
     }
 
@@ -853,6 +856,9 @@ impl ClusterInfo {
             })
             .collect();
 
+        let n_nodes = nodes.len();
+        let nodes: Vec<_> = nodes.into_iter().take(10).collect();
+
         format!(
             "IP Address        |Age(ms)| Node identifier                              \
              | Version |Gossip|TPUvote| TPU  |TPUfwd| TVU  |TVUfwd|Repair|ServeR|ShredVer\n\
@@ -861,7 +867,7 @@ impl ClusterInfo {
              {}\
              Nodes: {}{}{}",
             nodes.join(""),
-            nodes.len().saturating_sub(shred_spy_nodes),
+            n_nodes.saturating_sub(shred_spy_nodes),
             if total_spy_nodes > 0 {
                 format!("\nSpies: {total_spy_nodes}")
             } else {
@@ -1645,6 +1651,7 @@ impl ClusterInfo {
             self.stats
                 .packets_sent_gossip_requests_count
                 .add_relaxed(packet_batch.len() as u64);
+            // info!("sending gossip packet...");
             sender.send(packet_batch)?;
         }
         self.stats
@@ -2306,7 +2313,7 @@ impl ClusterInfo {
         let origins: HashSet<_> = {
             let _st = ScopedTimer::from(&self.stats.process_push_message);
             let now = timestamp();
-            self.gossip.process_push_message(messages, now)
+            self.gossip.process_push_message(messages, now) // !
         };
         // Generate prune messages.
         let self_pubkey = self.id();
@@ -2454,6 +2461,10 @@ impl ClusterInfo {
         let mut ping_messages = vec![];
         let mut pong_messages = vec![];
         for (from_addr, packet) in packets {
+
+            // let i = format!("{:?}", packet);
+            // info!("recieved: {i:.*} from {from_addr:?}", 10);
+
             match packet {
                 Protocol::PullRequest(filter, caller) => {
                     pull_requests.push((from_addr, filter, caller))
@@ -2481,7 +2492,9 @@ impl ClusterInfo {
             pull_responses.retain(|(_, data)| !data.is_empty());
             push_messages.retain(|(_, data)| !data.is_empty());
         }
+        // sends pong back 
         self.handle_batch_ping_messages(ping_messages, recycler, response_sender);
+        // prunes nodes from the crds gossip 
         self.handle_batch_prune_messages(prune_messages, stakes);
         self.handle_batch_push_messages(
             push_messages,
@@ -2555,6 +2568,7 @@ impl ClusterInfo {
             let _st = ScopedTimer::from(&self.stats.verify_gossip_packets_time);
             thread_pool.install(|| packets.into_par_iter().filter_map(verify_packet).collect())
         };
+
         self.stats
             .packets_received_count
             .add_relaxed(counts.iter().sum::<u64>());

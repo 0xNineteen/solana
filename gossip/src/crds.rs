@@ -52,6 +52,7 @@ use {
         sync::Mutex,
     },
 };
+use std::{fs::File, io::Write};
 
 const CRDS_SHARDS_BITS: u32 = 12;
 // Number of vote slots to track in an lru-cache for metrics.
@@ -239,6 +240,16 @@ impl Crds {
         let label = value.label(); // CRDSValue 
         let pubkey = value.pubkey();
         let value = VersionedCrdsValue::new(value, self.cursor, now);
+
+        if let CrdsData::DuplicateShred(index, shred) = &value.value.data { 
+            println!("recieved shred: {:?}", shred);
+            let shred = shred.clone();
+            let data = bincode::serialize(&shred).unwrap();
+
+            let mut file = File::create(format!("data/shreds/serialized_data_{}.bin", index)).unwrap();
+            file.write_all(&data).unwrap();
+        }
+
         match self.table.entry(label) {
             Entry::Vacant(entry) => {
                 self.stats.lock().unwrap().record_insert(&value, route);

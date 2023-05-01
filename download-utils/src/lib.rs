@@ -312,12 +312,15 @@ pub fn download_snapshot_archive(
             return Ok(());
         }
 
+        let download_path = format!(
+            "http://{}/{}",
+            rpc_addr,
+            destination_path.file_name().unwrap().to_str().unwrap()
+        );
+        println!("starting snapshot download: {download_path:?}...");
+        
         match download_file(
-            &format!(
-                "http://{}/{}",
-                rpc_addr,
-                destination_path.file_name().unwrap().to_str().unwrap()
-            ),
+            &download_path,
             &destination_path,
             use_progress_bar,
             progress_notify_callback,

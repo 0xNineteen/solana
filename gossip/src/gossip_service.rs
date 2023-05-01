@@ -61,6 +61,9 @@ impl GossipService {
             false,
             None,
         );
+
+        // deserializes packets to Protocol enum Messages (Pull, Push, Prune, ...)
+        // as batches
         let (consume_sender, listen_receiver) = unbounded();
 
         // Consumes packets received from the socket, deserializing, sanitizing and
@@ -72,6 +75,8 @@ impl GossipService {
             exit.clone(),
         );
 
+        // processes the Protocol messages
+        // just uses bank to get epoch duration and other small metadata
         let (response_sender, response_receiver) = unbounded();
 
         // [t_listen, and t_gossip] send messages to t_responder
@@ -86,7 +91,8 @@ impl GossipService {
             exit.clone(),
         );
 
-        // this randomly asks nodes in gossip for things (flushes push/pull reqs) (i think ... ?)
+        // periodically queries random nodes in the cluster
+        // same here
         let t_gossip = cluster_info.clone().gossip(
             bank_forks,
             response_sender,
@@ -247,7 +253,7 @@ pub fn get_multi_client(
     )
 }
 
-fn spy(
+pub fn spy(
     spy_ref: Arc<ClusterInfo>,
     num_nodes: Option<usize>,
     timeout: Duration,

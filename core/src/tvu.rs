@@ -277,6 +277,7 @@ impl Tvu {
 
         let drop_bank_service = DropBankService::new(drop_bank_receiver);
 
+        // reads the shreds from the blockstore and then saves them into bank forks 
         let replay_stage = ReplayStage::new(
             replay_stage_config,
             blockstore.clone(),

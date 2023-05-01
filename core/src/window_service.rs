@@ -267,6 +267,8 @@ where
 
     let mut prune_shreds_elapsed = Measure::start("prune_shreds_elapsed");
     let num_shreds = shreds.len();
+    println!("WINDOW SERVICE: N SHREDS FOUDN: {num_shreds:?}");
+
     prune_shreds_invalid_repair(&mut shreds, &mut repair_infos, outstanding_requests);
     ws_metrics.num_shreds_pruned_invalid_repair = num_shreds - shreds.len();
     let repairs: Vec<_> = repair_infos
