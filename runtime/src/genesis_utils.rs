@@ -214,6 +214,45 @@ pub fn activate_feature(genesis_config: &mut GenesisConfig, feature_id: Pubkey) 
 }
 
 #[allow(clippy::too_many_arguments)]
+pub fn create_genesis_config_multi_leader(
+    mint_lamports: u64,
+    mint_pubkey: &Pubkey,
+    validator_pubkey: &Pubkey,
+    validator_vote_account_pubkey: &Pubkey,
+    validator_stake_account_pubkey: &Pubkey,
+    validator_stake_lamports: u64,
+    validator_lamports: u64,
+    rent: Rent,
+    initial_accounts: &mut Vec<(Pubkey, AccountSharedData)>,
+) {
+    let validator_vote_account = vote_state::create_account(
+        validator_vote_account_pubkey,
+        validator_pubkey,
+        0,
+        validator_stake_lamports,
+    );
+
+    let validator_stake_account = stake_state::create_account(
+        validator_stake_account_pubkey,
+        validator_vote_account_pubkey,
+        &validator_vote_account,
+        &rent,
+        validator_stake_lamports,
+    );
+
+    initial_accounts.push((
+        *mint_pubkey,
+        AccountSharedData::new(mint_lamports, 0, &system_program::id()),
+    ));
+    initial_accounts.push((
+        *validator_pubkey,
+        AccountSharedData::new(validator_lamports, 0, &system_program::id()),
+    ));
+    initial_accounts.push((*validator_vote_account_pubkey, validator_vote_account));
+    initial_accounts.push((*validator_stake_account_pubkey, validator_stake_account));
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn create_genesis_config_with_leader_ex(
     mint_lamports: u64,
     mint_pubkey: &Pubkey,

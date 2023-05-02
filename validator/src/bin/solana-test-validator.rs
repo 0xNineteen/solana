@@ -1,3 +1,5 @@
+use solana_gossip::contact_info::LegacyContactInfo as ContactInfo;
+
 use {
     clap::{crate_name, value_t, value_t_or_exit, values_t_or_exit},
     crossbeam_channel::unbounded,
@@ -95,6 +97,7 @@ fn main() {
     let mut ledger_lock = ledger_lockfile(&ledger_path);
     let _ledger_write_guard = lock_ledger(&ledger_path, &mut ledger_lock);
     if reset_ledger {
+        println!("removing ledger dir...");
         remove_directory_contents(&ledger_path).unwrap_or_else(|err| {
             println!("Error: Unable to remove {}: {}", ledger_path.display(), err);
             exit(1);
@@ -550,10 +553,30 @@ fn main() {
         genesis.compute_unit_limit(compute_unit_limit);
     }
 
+    // use cluster size to find other local nodes
+    let cluster_size = value_t!(matches, "cluster_size", u8)
+        .ok().unwrap_or(1);
+
+    let base_port: u32 = 8000; // make sure this is the same as cluster_run.sh
+    let entrypoints = (1..cluster_size+1).filter_map(move |i| {
+        let port = base_port + (i as u32 - 1) * 10;
+        // dont include self
+        if port as u16 == gossip_port.unwrap() { 
+            return None;
+        }
+
+        let addr: SocketAddr = format!("127.0.0.1:{port:?}").parse().unwrap();
+        Some(addr)
+    })
+    .map(|addr| ContactInfo::new_gossip_entry_point(&addr))
+    .collect_vec();
+
     match genesis.start_with_mint_address_and_geyser_plugin_rpc(
         mint_address,
         socket_addr_space,
         rpc_to_plugin_manager_receiver,
+        entrypoints,
+        cluster_size,
     ) {
         Ok(test_validator) => {
             if let Some(dashboard) = dashboard {

@@ -1,4 +1,9 @@
 #![allow(clippy::integer_arithmetic)]
+
+use solana_stake_program::stake_state;
+use solana_gossip::legacy_contact_info::LegacyContactInfo;
+use solana_runtime::genesis_utils::{create_genesis_config_multi_leader, activate_all_features};
+use solana_sdk::genesis_config::{GenesisConfig, ClusterType};
 use {
     crossbeam_channel::Receiver,
     log::*,
@@ -528,7 +533,7 @@ impl TestValidatorGenesis {
         mint_address: Pubkey,
         socket_addr_space: SocketAddrSpace,
     ) -> Result<TestValidator, Box<dyn std::error::Error>> {
-        self.start_with_mint_address_and_geyser_plugin_rpc(mint_address, socket_addr_space, None)
+        self.start_with_mint_address_and_geyser_plugin_rpc(mint_address, socket_addr_space, None, vec![], 1)
     }
 
     /// Start a test validator with the address of the mint account that will receive tokens
@@ -540,12 +545,16 @@ impl TestValidatorGenesis {
         mint_address: Pubkey,
         socket_addr_space: SocketAddrSpace,
         rpc_to_plugin_manager_receiver: Option<Receiver<GeyserPluginManagerRequest>>,
+        entrypoints: Vec<LegacyContactInfo>,
+        cluster_size: u8,
     ) -> Result<TestValidator, Box<dyn std::error::Error>> {
         TestValidator::start(
             mint_address,
             self,
             socket_addr_space,
             rpc_to_plugin_manager_receiver,
+            entrypoints,
+            cluster_size,
         )
         .map(|test_validator| {
             let runtime = tokio::runtime::Builder::new_current_thread()
@@ -596,7 +605,7 @@ impl TestValidatorGenesis {
         socket_addr_space: SocketAddrSpace,
     ) -> (TestValidator, Keypair) {
         let mint_keypair = Keypair::new();
-        match TestValidator::start(mint_keypair.pubkey(), self, socket_addr_space, None) {
+        match TestValidator::start(mint_keypair.pubkey(), self, socket_addr_space, None, vec![], 1) {
             Ok(test_validator) => {
                 test_validator.wait_for_nonzero_fees().await;
                 (test_validator, mint_keypair)
@@ -698,13 +707,8 @@ impl TestValidator {
     fn initialize_ledger(
         mint_address: Pubkey,
         config: &TestValidatorGenesis,
+        cluster_size: u8,
     ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-        let validator_identity = Keypair::new();
-        let validator_vote_account = Keypair::new();
-        let validator_stake_account = Keypair::new();
-        let validator_identity_lamports = sol_to_lamports(500.);
-        let validator_stake_lamports = sol_to_lamports(1_000_000.);
-        let mint_lamports = sol_to_lamports(500_000_000.);
 
         let mut accounts = config.accounts.clone();
         for (address, account) in solana_program_test::programs::spl_programs(&config.rent) {
@@ -763,19 +767,70 @@ impl TestValidator {
             );
         }
 
-        let mut genesis_config = create_genesis_config_with_leader_ex(
-            mint_lamports,
-            &mint_address,
-            &validator_identity.pubkey(),
-            &validator_vote_account.pubkey(),
-            &validator_stake_account.pubkey(),
-            validator_stake_lamports,
-            validator_identity_lamports,
-            config.fee_rate_governor.clone(),
-            config.rent,
-            solana_sdk::genesis_config::ClusterType::Development,
-            accounts.into_iter().collect(),
-        );
+        let validator_identity_lamports = sol_to_lamports(500.);
+        let validator_stake_lamports = sol_to_lamports(1_000_000.);
+        let mint_lamports = sol_to_lamports(500_000_000.);
+
+        fn parse_keypair(path: PathBuf) -> Keypair { 
+            let value = fs::read_to_string(&path).expect(format!("unable to read file {path:?}").as_str());
+            let bytes: Vec<u8> = serde_json::from_str(&value).unwrap();
+            let keypair = Keypair::from_bytes(&bytes[..]).unwrap();
+            keypair
+        }
+
+        // read keypairs from ledger directory
+        let mut initial_accounts: Vec<_> = accounts.into_iter().collect();
+
+        let mut node_one_id = None;
+
+        for i in 1..(cluster_size + 1) { 
+            println!("parsing keypairs for node {i}");
+
+            let node_ledger_path = config.ledger_path.clone().unwrap().join(format!("../node{i:?}"));
+            let validator_identity = parse_keypair(node_ledger_path.join("validator_id.json"));
+            let validator_vote = parse_keypair(node_ledger_path.join("validator_vote.json"));
+            let validator_stake = parse_keypair(node_ledger_path.join("validator_stake.json"));
+
+            create_genesis_config_multi_leader(
+                mint_lamports,
+                &mint_address,
+                &validator_identity.pubkey(),
+                &validator_vote.pubkey(),
+                &validator_stake.pubkey(),
+                validator_stake_lamports,
+                validator_identity_lamports,
+                config.rent,
+                &mut initial_accounts,
+            );
+
+            if i == 1 { 
+                node_one_id = Some(validator_identity.pubkey());
+            }
+        }
+
+        let mut genesis_config = GenesisConfig {
+            accounts: initial_accounts
+                .iter()
+                .cloned()
+                .map(|(key, account)| (key, Account::from(account)))
+                .collect(),
+            fee_rate_governor: config.fee_rate_governor.clone(),
+            rent: config.rent,
+            cluster_type: solana_sdk::genesis_config::ClusterType::Development,
+            ..GenesisConfig::default()
+        };
+        genesis_config.creation_time = 915148801; // need this for hash to be same across runs
+
+        solana_stake_program::add_genesis_accounts(&mut genesis_config);
+        if genesis_config.cluster_type == ClusterType::Development {
+            activate_all_features(&mut genesis_config);
+        }
+
+        // reload this nodes keypairs 
+        let node_ledger_path = config.ledger_path.clone().unwrap();
+        let validator_identity = parse_keypair(node_ledger_path.join("validator_id.json"));
+        let validator_vote_account = parse_keypair(node_ledger_path.join("validator_vote.json"));
+
         genesis_config.epoch_schedule = config
             .epoch_schedule
             .unwrap_or_else(EpochSchedule::without_warmup);
@@ -802,31 +857,50 @@ impl TestValidator {
             }
         }
 
-        let ledger_path = match &config.ledger_path {
-            None => create_new_tmp_ledger!(&genesis_config).0,
-            Some(ledger_path) => {
-                if TestValidatorGenesis::ledger_exists(ledger_path) {
-                    return Ok(ledger_path.to_path_buf());
+        let is_first = node_one_id.unwrap() == validator_identity.pubkey();
+        if !is_first { 
+            // load genesis from leader
+            println!("overriding gensis...");
+            for _ in 0..10 {
+                let node_ledger_path = config.ledger_path.clone().unwrap().join(format!("../node1"));
+                let genesis_config_ = GenesisConfig::load(&node_ledger_path);
+                if let Ok(config) = genesis_config_ { 
+                    genesis_config = config; 
+                    break; 
+                } else { 
+                    println!("sleeping...");
+                    std::thread::sleep(Duration::from_millis(100));
                 }
-
-                let _ = create_new_ledger(
-                    ledger_path,
-                    &genesis_config,
-                    config
-                        .max_genesis_archive_unpacked_size
-                        .unwrap_or(MAX_GENESIS_ARCHIVE_UNPACKED_SIZE),
-                    LedgerColumnOptions::default(),
-                )
-                .map_err(|err| {
-                    format!(
-                        "Failed to create ledger at {}: {}",
-                        ledger_path.display(),
-                        err
-                    )
-                })?;
-                ledger_path.to_path_buf()
             }
-        };
+        }
+        println!("hash: {:?}", genesis_config.hash());
+
+        let ledger_path = config.ledger_path.as_ref().unwrap();
+        let _ = create_new_ledger(
+            ledger_path,
+            &genesis_config,
+            config
+                .max_genesis_archive_unpacked_size
+                .unwrap_or(MAX_GENESIS_ARCHIVE_UNPACKED_SIZE),
+            LedgerColumnOptions::default(),
+        )
+        .map_err(|err| {
+            format!(
+                "Failed to create ledger at {}: {}",
+                ledger_path.display(),
+                err
+            )
+        })?;
+
+        // let ledger_path = match &config.ledger_path {
+        //     None => create_new_tmp_ledger!(&genesis_config).0,
+        //     Some(ledger_path) => {
+        //         if TestValidatorGenesis::ledger_exists(ledger_path) {
+        //             return Ok(ledger_path.to_path_buf());
+        //         }
+        //         ledger_path.to_path_buf()
+        //     }
+        // };
 
         write_keypair_file(
             &validator_identity,
@@ -844,7 +918,7 @@ impl TestValidator {
                 .unwrap(),
         )?;
 
-        Ok(ledger_path)
+        Ok(ledger_path.clone())
     }
 
     /// Starts a TestValidator at the provided ledger directory
@@ -853,9 +927,13 @@ impl TestValidator {
         config: &TestValidatorGenesis,
         socket_addr_space: SocketAddrSpace,
         rpc_to_plugin_manager_receiver: Option<Receiver<GeyserPluginManagerRequest>>,
+        entrypoints: Vec<LegacyContactInfo>,
+        cluster_size: u8,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let preserve_ledger = config.ledger_path.is_some();
-        let ledger_path = TestValidator::initialize_ledger(mint_address, config)?;
+
+        // ! need to modify this to have multiple validators
+        let ledger_path = TestValidator::initialize_ledger(mint_address, config, cluster_size)?;
 
         let validator_identity =
             read_keypair_file(ledger_path.join("validator-keypair.json").to_str().unwrap())?;
@@ -963,7 +1041,7 @@ impl TestValidator {
             &ledger_path,
             &vote_account_address,
             config.authorized_voter_keypairs.clone(),
-            vec![],
+            entrypoints, // need this to start a full cluster 
             &validator_config,
             true, // should_check_duplicate_instance
             rpc_to_plugin_manager_receiver,

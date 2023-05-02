@@ -7047,6 +7047,7 @@ dependencies = [
  "solana-rpc-client",
  "solana-runtime",
  "solana-sdk 1.16.0",
+ "solana-stake-program",
  "solana-streamer",
  "solana-tpu-client",
  "tokio",

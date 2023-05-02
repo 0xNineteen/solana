@@ -2473,8 +2473,8 @@ impl ClusterInfo {
         let mut pong_messages = vec![];
         for (from_addr, packet) in packets {
 
-            // let i = format!("{:?}", packet);
-            // info!("recieved: {i:.*} from {from_addr:?}", 10);
+            let i = format!("{:?}", packet);
+            println!("recieved: {i:.*} from {from_addr:?}", 10);
 
             match packet {
                 Protocol::PullRequest(filter, caller) => {

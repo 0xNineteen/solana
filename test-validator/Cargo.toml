@@ -33,6 +33,7 @@ solana-sdk = { workspace = true }
 solana-streamer = { workspace = true }
 solana-tpu-client = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+solana-stake-program = { workspace = true }
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]

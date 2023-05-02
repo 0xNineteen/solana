@@ -237,8 +237,8 @@ pub fn into_shreds(
         Err(Error::ShredTypeMismatch)
     } else if shred1.payload() == shred2.payload() {
         Err(Error::InvalidDuplicateShreds)
-    // } else if !shred1.verify(slot_leader) || !shred2.verify(slot_leader) {
-    //     Err(Error::InvalidSignature)
+    } else if !shred1.verify(slot_leader) || !shred2.verify(slot_leader) {
+        Err(Error::InvalidSignature)
     } else {
         Ok((shred1, shred2))
     }

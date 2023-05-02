@@ -82,7 +82,6 @@ impl GossipService {
         // [t_listen, and t_gossip] send messages to t_responder
         // Process messages from the network
             // filters packets into Protocol::PullRequest( ... enum type 
-            // 
         let t_listen = cluster_info.clone().listen(
             bank_forks.clone(),
             listen_receiver,

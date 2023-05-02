@@ -2255,6 +2255,13 @@ pub fn test_app<'a>(version: &'a str, default_args: &'a DefaultTestArgs) -> App<
                 ),
         )
         .arg(
+            Arg::with_name("cluster_size")
+                .long("cluster-size")
+                .value_name("SIZE")
+                .takes_value(true)
+                .help("local cluster size"),
+        )
+        .arg(
             Arg::with_name("gossip_port")
                 .long("gossip-port")
                 .value_name("PORT")
@@ -2453,6 +2460,7 @@ pub struct DefaultTestArgs {
     pub limit_ledger_size: String,
     pub faucet_sol: String,
     pub faucet_time_slice_secs: String,
+    pub cluster_size: u8,
 }
 
 impl DefaultTestArgs {
@@ -2467,6 +2475,7 @@ impl DefaultTestArgs {
             limit_ledger_size: 10_000.to_string(),
             faucet_sol: (1_000_000.).to_string(),
             faucet_time_slice_secs: (faucet::TIME_SLICE).to_string(),
+            cluster_size: 1,
         }
     }
 }
