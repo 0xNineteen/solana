@@ -194,6 +194,7 @@ impl Tpu {
 
         let (gossip_vote_sender, gossip_vote_receiver) =
             banking_tracer.create_channel_gossip_vote();
+        // listens to votes from gossip - sends to banking stage
         let cluster_info_vote_listener = ClusterInfoVoteListener::new(
             exit.clone(),
             cluster_info.clone(),
@@ -214,10 +215,10 @@ impl Tpu {
             cluster_info,
             poh_recorder,
             non_vote_receiver,
-            tpu_vote_receiver,
-            gossip_vote_receiver,
+            tpu_vote_receiver, // from tpu 
+            gossip_vote_receiver, // from gossip 
             transaction_status_sender,
-            replay_vote_sender,
+            replay_vote_sender, // votes to send to the replay ? 
             log_messages_bytes_limit,
             connection_cache.clone(),
             bank_forks.clone(),

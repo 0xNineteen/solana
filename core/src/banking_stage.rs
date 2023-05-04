@@ -291,10 +291,10 @@ impl BankingStage {
         cluster_info: &Arc<ClusterInfo>,
         poh_recorder: &Arc<RwLock<PohRecorder>>,
         non_vote_receiver: BankingPacketReceiver,
-        tpu_vote_receiver: BankingPacketReceiver,
-        gossip_vote_receiver: BankingPacketReceiver,
+        tpu_vote_receiver: BankingPacketReceiver, // votes from port
+        gossip_vote_receiver: BankingPacketReceiver, // votes from gossip
         transaction_status_sender: Option<TransactionStatusSender>,
-        replay_vote_sender: ReplayVoteSender,
+        replay_vote_sender: ReplayVoteSender, // also from gossip? 
         log_messages_bytes_limit: Option<usize>,
         connection_cache: Arc<ConnectionCache>,
         bank_forks: Arc<RwLock<BankForks>>,

@@ -838,6 +838,7 @@ impl ReplayStage {
                         );
                     }
 
+                    // !!
                     Self::handle_votable_bank(
                         vote_bank,
                         switch_fork_decision,

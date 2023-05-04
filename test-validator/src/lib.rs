@@ -861,17 +861,20 @@ impl TestValidator {
         if !is_first { 
             // load genesis from leader
             println!("overriding gensis...");
+            let mut success = false;
             for _ in 0..10 {
                 let node_ledger_path = config.ledger_path.clone().unwrap().join(format!("../node1"));
                 let genesis_config_ = GenesisConfig::load(&node_ledger_path);
                 if let Ok(config) = genesis_config_ { 
                     genesis_config = config; 
+                    success = true;
                     break; 
                 } else { 
                     println!("sleeping...");
                     std::thread::sleep(Duration::from_millis(100));
                 }
             }
+            assert!(success);
         }
         println!("hash: {:?}", genesis_config.hash());
 

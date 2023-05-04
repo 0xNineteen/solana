@@ -123,7 +123,7 @@ impl Tvu {
         vote_tracker: Arc<VoteTracker>,
         retransmit_slots_sender: RetransmitSlotsSender,
         gossip_verified_vote_hash_receiver: GossipVerifiedVoteHashReceiver,
-        verified_vote_receiver: VerifiedVoteReceiver,
+        verified_vote_receiver: VerifiedVoteReceiver, // votes from gossip
         replay_vote_sender: ReplayVoteSender,
         completed_data_sets_sender: CompletedDataSetsSender,
         bank_notification_sender: Option<BankNotificationSender>,
@@ -251,6 +251,7 @@ impl Tvu {
             replay_slots_concurrently: tvu_config.replay_slots_concurrently,
         };
 
+        // sends votes recieved to the TPU 
         let (voting_sender, voting_receiver) = unbounded();
         let voting_service = VotingService::new(
             voting_receiver,
