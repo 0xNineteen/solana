@@ -1,6 +1,6 @@
 #!/bin/bash -ex
 #
-# (Re)starts the InfluxDB/Chronograf containers
+# (Re)starts the InfluxDB services
 #
 
 cd "$(dirname "$0")"
@@ -18,53 +18,57 @@ check_service() {
   local service=$1
   shift
   local servers=("$@")
-  local status="unknown"
   local message=""
 
   # Loop through the servers
   for server in "${servers[@]}"; do
-    # Check if the service is running
-    if ssh -o StrictHostKeyChecking=no sol@"$server" sudo systemctl is-active "$service" >/dev/null; then
-      # Service is running
-      status="running"
-      break
-    fi
-  done
-
-  # If the service is not running, send an alert to Discord and try to restart it
-  if [[ "$status" == "unknown" ]]; then
-    message="The $service service is not running on $server. Restarting..."
-    echo "$message"
-    curl -H "Content-Type: application/json" -d '{"content":"'"$message"'"}' "$DISCORD_WEBHOOK"
-
-    for server in "${servers[@]}"; do
-      # Try to restart the service
-      ssh -o StrictHostKeyChecking=no sol@"$server" sudo systemctl restart "$service"
-      sleep 10 # Wait for the service to start
-      if ssh -o StrictHostKeyChecking=no sol@"$server" sudo systemctl is-active "$service" >/dev/null; then
-        # Service restarted successfully
-        status="restarted"
-        message="The $service service was restarted successfully on $server."
-        break
+    ssh_success=false
+    ssh_attempts=0
+    while ! $ssh_success && [ $ssh_attempts -lt 3 ]; do
+      # Check if the service is running
+      if ssh -o StrictHostKeyChecking=no sol@"$server" sudo systemctl is-active "$service" >/dev/null 2>&1; then
+        ssh_success=true
+      else
+        ssh_attempts=$((ssh_attempts + 1))
+        sleep 5
       fi
     done
-  fi
 
-  # Send message to Discord and PagerDuty
-  case "$status" in
-    "running")
-      # No message is sent when the service is already running properly
-      ;;
-    "restarted")
+    if $ssh_success; then
+      # Service is running
+      message="The $service service is running on $server."
+      echo "$message"
+    else
+      # SSH connection failed after retries
+      message="ERROR: Unable to establish SSH connection to $server after 3 retries."
+      echo "$message"
+      curl -H "Content-Type: application/json" -d '{"content":"'"$message"', manual intervention is required."}' "$DISCORD_WEBHOOK"
+      continue
+    fi
+
+    # Service is not running, try to restart it
+    if ! $ssh_success; then
+      message="The $service service is not running on $server. Restarting..."
       echo "$message"
       curl -H "Content-Type: application/json" -d '{"content":"'"$message"'"}' "$DISCORD_WEBHOOK"
-      ;;
-    *)
-      echo "ERROR: The '$service' service failed to restart on '$server'."
-      curl -H "Content-Type: application/json" -d '{"content":"ERROR: The '"$service"' service failed to restart on '"$server"', manual intervention is required."}' "$DISCORD_WEBHOOK"
-      curl -H "Content-Type: application/json" -d '{"routing_key":"<your-pagerduty-service-key>","event_action":"trigger","payload":{"summary":"The '"$service"' service failed to restart on '"$server"'.","severity":"critical"}}' "$PAGERDUTY_WEBHOOK"
-      ;;
-  esac
+
+      ssh -o StrictHostKeyChecking=no sol@"$server" sudo systemctl restart "$service"
+      sleep 10 # Wait for the service to start
+
+      if ssh -o StrictHostKeyChecking=no sol@"$server" sudo systemctl is-active "$service" >/dev/null; then
+        # Service restarted successfully
+        message="The $service service was restarted successfully on $server."
+        echo "$message"
+        curl -H "Content-Type: application/json" -d '{"content":"'"$message"'"}' "$DISCORD_WEBHOOK"
+      else
+        # Service failed to restart
+        message="ERROR: The $service service failed to restart on $server."
+        echo "$message"
+        curl -H "Content-Type: application/json" -d '{"content":"'"$message"', manual intervention is required."}' "$DISCORD_WEBHOOK"
+        curl -H "Content-Type: application/json" -d '{"routing_key":"<your-pagerduty-service-key>","event_action":"trigger","payload":{"summary":"The '"$service"' service failed to restart on '"$server"'.","severity":"critical"}}' "$PAGERDUTY_WEBHOOK"
+      fi
+    fi
+  done
 }
 
 # Check the influxdb service
