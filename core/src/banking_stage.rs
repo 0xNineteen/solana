@@ -400,9 +400,11 @@ impl BankingStage {
                     prioritization_fee_cache.clone(),
                 );
                 let decision_maker = DecisionMaker::new(cluster_info.id(), poh_recorder.clone());
+
+                // forwards packs to the leader's TPU (either vote or tx socket)
                 let forwarder = Forwarder::new(
-                    poh_recorder.clone(),
-                    bank_forks.clone(),
+                    poh_recorder.clone(), // used to find leader schedule
+                    bank_forks.clone(), // used to find bank root (to sanitize/verify txs/votes are valid)
                     cluster_info.clone(),
                     connection_cache.clone(),
                     data_budget.clone(),
@@ -445,6 +447,11 @@ impl BankingStage {
         if unprocessed_transaction_storage.should_not_process() {
             return;
         }
+        // decision = 
+            // consume if current leader 
+            // hold if will be leader 
+            // forward if wont be leader for a while
+            // OR dont know the leader (do nothing)
         let (decision, make_decision_time) =
             measure!(decision_maker.make_consume_or_forward_decision());
         let metrics_action = slot_metrics_tracker.check_leader_slot_boundary(decision.bank_start());

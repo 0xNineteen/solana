@@ -48,6 +48,7 @@ impl DecisionMaker {
             decision = Self::consume_or_forward_packets(
                 &self.my_pubkey,
                 || {
+                    // bank is leader => consume
                     poh_recorder.bank_start().filter(|bank_start| {
                         bank_start.should_working_bank_still_be_processing_txs()
                     })

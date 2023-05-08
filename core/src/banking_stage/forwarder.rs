@@ -94,6 +94,8 @@ impl Forwarder {
                 slot_metrics_tracker.increment_forwardable_batches_count(1);
 
                 let batched_forwardable_packets_count = forward_batch.len();
+
+                // forward to leader
                 let (_forward_result, sucessful_forwarded_packets_count, leader_pubkey) = self
                     .forward_buffered_packets(
                         &forward_option,

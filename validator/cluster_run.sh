@@ -47,6 +47,7 @@ for ((i=1; i<=n_nodes; i++)); do
         --faucet-port $((port+1)) \
         --rpc-port $((port+2)) \
         --cluster-size $n_nodes \
+        --rpc-pubsub-enable-block-subscription \
         --ledger $node_ledger_dir &
 
     # record PID to kill later

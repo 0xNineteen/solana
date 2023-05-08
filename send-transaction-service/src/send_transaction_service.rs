@@ -395,7 +395,7 @@ impl SendTransactionService {
 
     /// Thread responsible for receiving transactions from RPC clients.
     fn receive_txn_thread<T: TpuInfo + std::marker::Send + 'static>(
-        tpu_address: SocketAddr,
+        tpu_address: SocketAddr, // this nodes tpu_address
         receiver: Receiver<TransactionInfo>,
         leader_info_provider: Arc<Mutex<CurrentLeaderInfo<T>>>,
         connection_cache: Arc<ConnectionCache>,
