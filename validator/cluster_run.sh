@@ -41,13 +41,14 @@ for ((i=1; i<=n_nodes; i++)); do
     # note cluster-size arg
     ../target/debug/solana-test-validator \
         -q \
-        --bind-address 0.0.0.0 \
+        --bind-address 127.0.0.1 \
         --gossip-port $port \
         --slots-per-epoch 100 \
         --faucet-port $((port+1)) \
         --rpc-port $((port+2)) \
         --cluster-size $n_nodes \
         --rpc-pubsub-enable-block-subscription \
+        --rpc-pubsub-enable-vote-subscription \
         --ledger $node_ledger_dir &
 
     # record PID to kill later

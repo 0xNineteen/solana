@@ -965,6 +965,8 @@ impl TestValidator {
         let tpu = node.info.tpu().unwrap();
         let gossip = node.info.gossip().unwrap();
 
+        println!("rpc pub sub url: {:?}", rpc_pubsub_url);
+
         {
             let mut authorized_voter_keypairs = config.authorized_voter_keypairs.write().unwrap();
             if !authorized_voter_keypairs
