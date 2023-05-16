@@ -14,6 +14,7 @@ pub use crate::mock_sender::Mocks;
 use solana_rpc_client_api::deprecated_config::{
     RpcConfirmedBlockConfig, RpcConfirmedTransactionConfig,
 };
+use solana_transaction_status::BlockHeader;
 use {
     crate::{
         http_sender::HttpSender,
