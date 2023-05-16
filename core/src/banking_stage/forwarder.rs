@@ -3,7 +3,7 @@ use {
     crate::{
         forward_packet_batches_by_accounts::ForwardPacketBatchesByAccounts,
         leader_slot_banking_stage_metrics::LeaderSlotMetricsTracker,
-        next_leader::{next_leader_tpu_forwards, next_leader_tpu_vote},
+        next_leader::{next_leader, next_leader_tpu_vote},
         tracer_packet_stats::TracerPacketStats,
         unprocessed_transaction_storage::UnprocessedTransactionStorage,
     },
@@ -86,6 +86,10 @@ impl Forwarder {
                 filter_forwarding_result.total_filter_packets_us,
                 Ordering::Relaxed,
             );
+        banking_stage_stats.dropped_forward_packets_count.fetch_add(
+            filter_forwarding_result.total_dropped_packets,
+            Ordering::Relaxed,
+        );
 
         forward_packet_batches_by_accounts
             .iter_batches()
@@ -217,9 +221,10 @@ impl Forwarder {
         match forward_option {
             ForwardOption::NotForward => None,
             ForwardOption::ForwardTransaction => {
-                next_leader_tpu_forwards(&self.cluster_info, &self.poh_recorder)
+                next_leader(&self.cluster_info, &self.poh_recorder, |node| {
+                    node.tpu_forwards(self.connection_cache.protocol())
+                })
             }
-
             ForwardOption::ForwardTpuVote => {
                 next_leader_tpu_vote(&self.cluster_info, &self.poh_recorder)
             }
@@ -254,8 +259,6 @@ impl Forwarder {
                 batch_send(&self.socket, &pkts).map_err(|err| err.into())
             }
             ForwardOption::ForwardTransaction => {
-                // All other transactions can be forwarded using QUIC, get_connection() will use
-                // system wide setting to pick the correct connection object.
                 let conn = self.connection_cache.get_connection(addr);
                 conn.send_data_batch_async(packet_vec)
             }

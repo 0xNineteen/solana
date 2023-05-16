@@ -7,6 +7,7 @@ use {
         parse_accounts::{parse_legacy_message_accounts, parse_v0_message_accounts, ParsedAccount},
         parse_instruction::{parse, ParsedInstruction},
     },
+    base64::{prelude::BASE64_STANDARD, Engine},
     solana_account_decoder::parse_token::UiTokenAmount,
     solana_sdk::{
         clock::{Slot, UnixTimestamp},
@@ -1056,7 +1057,7 @@ impl EncodableWithMeta for VersionedTransaction {
                 TransactionBinaryEncoding::Base58,
             ),
             UiTransactionEncoding::Base64 => EncodedTransaction::Binary(
-                base64::encode(bincode::serialize(self).unwrap()),
+                BASE64_STANDARD.encode(bincode::serialize(self).unwrap()),
                 TransactionBinaryEncoding::Base64,
             ),
             UiTransactionEncoding::Json => self.json_encode(),
@@ -1096,7 +1097,7 @@ impl Encodable for Transaction {
                 TransactionBinaryEncoding::Base58,
             ),
             UiTransactionEncoding::Base64 => EncodedTransaction::Binary(
-                base64::encode(bincode::serialize(self).unwrap()),
+                BASE64_STANDARD.encode(bincode::serialize(self).unwrap()),
                 TransactionBinaryEncoding::Base64,
             ),
             UiTransactionEncoding::Json | UiTransactionEncoding::JsonParsed => {
@@ -1132,7 +1133,8 @@ impl EncodedTransaction {
                 .into_vec()
                 .ok()
                 .and_then(|bytes| bincode::deserialize(&bytes).ok()),
-            TransactionBinaryEncoding::Base64 => base64::decode(blob)
+            TransactionBinaryEncoding::Base64 => BASE64_STANDARD
+                .decode(blob)
                 .ok()
                 .and_then(|bytes| bincode::deserialize(&bytes).ok()),
         };
@@ -1316,7 +1318,7 @@ impl From<TransactionReturnData> for UiTransactionReturnData {
         Self {
             program_id: return_data.program_id.to_string(),
             data: (
-                base64::encode(return_data.data),
+                BASE64_STANDARD.encode(return_data.data),
                 UiReturnDataEncoding::Base64,
             ),
         }

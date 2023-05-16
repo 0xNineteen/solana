@@ -380,7 +380,7 @@ impl JsonRpcService {
 
         let tpu_address = cluster_info
             .my_contact_info()
-            .tpu()
+            .tpu(connection_cache.protocol())
             .map_err(|err| format!("{err}"))?;
 
         // sadly, some parts of our current rpc implemention block the jsonrpc's
