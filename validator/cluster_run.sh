@@ -8,14 +8,6 @@ base_port=8000
 declare -a processes=()
 echo setting up $n_nodes nodes ...
 
-FILE=$ledger_dir/genesis.tar.bz2
-if test -f "$FILE"; then
-    echo "genesis file exists."
-else
-    echo "genesis $FILE dne - exiting..."
-    return
-fi
-
 # generate keypairs of all validators first
 for ((i=1; i<=n_nodes; i++)); do
     node_ledger_dir=$ledger_dir/node${i}
