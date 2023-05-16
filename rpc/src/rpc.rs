@@ -1,5 +1,9 @@
 //! The `rpc` module implements the Solana RPC interface.
 
+use solana_account_decoder::{UiAccountData, parse_stake::StakeAccountType};
+use solana_sdk::message::AccountKeys;
+use solana_transaction_status::{BlockHeader, EncodedTransaction, UiInstruction};
+
 use {
     crate::{
         max_slots::MaxSlots, optimistically_confirmed_bank_tracker::OptimisticallyConfirmedBank,
@@ -109,6 +113,7 @@ use {
         },
         time::Duration,
     },
+    itertools::Itertools,
 };
 
 type RpcCustomResult<T> = std::result::Result<T, RpcCustomError>;
@@ -3953,6 +3958,16 @@ pub mod rpc_full {
         ) -> BoxFuture<Result<Option<UiConfirmedBlock>>> {
             debug!("get_block rpc request received: {:?}", slot);
             Box::pin(async move { meta.get_block(slot, config).await })
+        }
+
+        fn get_block_headers(
+            &self,
+            meta: Self::Metadata,
+            slot: Slot,
+            config: Option<RpcEncodingConfigWrapper<RpcBlockConfig>>,
+        ) -> BoxFuture<Result<BlockHeader>> {
+            debug!("get_block_headers rpc request received: {:?}", slot);
+            Box::pin(async move { meta.get_block_headers(slot, config).await })
         }
 
         fn get_blocks(
