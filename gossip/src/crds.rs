@@ -241,15 +241,6 @@ impl Crds {
         let pubkey = value.pubkey();
         let value = VersionedCrdsValue::new(value, self.cursor, now);
 
-        if let CrdsData::DuplicateShred(index, shred) = &value.value.data { 
-            println!("recieved shred: {:?}", shred);
-            let shred = shred.clone();
-            let data = bincode::serialize(&shred).unwrap();
-
-            let mut file = File::create(format!("data/shreds/serialized_data_{}.bin", index)).unwrap();
-            file.write_all(&data).unwrap();
-        }
-
         match self.table.entry(label) {
             Entry::Vacant(entry) => {
                 self.stats.lock().unwrap().record_insert(&value, route);

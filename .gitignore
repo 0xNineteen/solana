@@ -9,6 +9,7 @@
 
 **/*.rs.bk
 .cargo
+Cargo.lock
 
 /config/
 
