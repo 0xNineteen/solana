@@ -114,6 +114,7 @@ pub enum RpcRequest {
     SendTransaction,
     SimulateTransaction,
     SignVote,
+    GetBlockHeaders,
 }
 
 #[allow(deprecated)]
@@ -121,6 +122,7 @@ impl fmt::Display for RpcRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let method = match self {
             RpcRequest::Custom { method } => method,
+            RpcRequest::GetBlockHeaders => "getBlockHeaders",
             RpcRequest::DeregisterNode => "deregisterNode",
             RpcRequest::GetAccountInfo => "getAccountInfo",
             RpcRequest::GetBalance => "getBalance",

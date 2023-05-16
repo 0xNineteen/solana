@@ -2486,6 +2486,18 @@ impl RpcClient {
             .await
     }
 
+    pub async fn get_block_headers(
+        &self,
+        slot: Slot,
+        encoding: UiTransactionEncoding,
+    ) -> ClientResult<BlockHeader> {
+        self.send(
+            self.maybe_map_request(RpcRequest::GetBlockHeaders).await?,
+            json!([slot, encoding]),
+        )
+        .await
+    }
+
     /// Returns identity and transaction information about a confirmed block in the ledger.
     ///
     /// # RPC Reference

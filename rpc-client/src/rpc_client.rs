@@ -2046,6 +2046,10 @@ impl RpcClient {
         self.invoke((self.rpc_client.as_ref()).get_block(slot))
     }
 
+    pub fn get_block_headers(&self, slot: Slot) -> ClientResult<BlockHeader> {
+        self.invoke((self.rpc_client.as_ref()).get_block_headers(slot, UiTransactionEncoding::Json))
+    }
+
     /// Returns identity and transaction information about a confirmed block in the ledger.
     ///
     /// # RPC Reference
