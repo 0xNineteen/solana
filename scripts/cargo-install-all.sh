@@ -103,7 +103,6 @@ else
     solana-ledger-tool
     solana-log-analyzer
     solana-net-shaper
-    solana-sys-tuner
     solana-validator
     rbpf-cli
   )
@@ -168,7 +167,7 @@ fi
 # Add Solidity Compiler
 if [[ -z "$validatorOnly" ]]; then
   base="https://github.com/hyperledger/solang/releases/download"
-  version="v0.2.3"
+  version="v0.3.0"
   curlopt="-sSfL --retry 5 --retry-delay 2 --retry-connrefused"
 
   case $(uname -s) in

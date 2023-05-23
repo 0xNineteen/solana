@@ -14,12 +14,13 @@ use {
         },
         range_proof::RangeProof,
         sigma_proofs::{
-            equality_proof::CtxtCommEqualityProof, fee_proof::FeeSigmaProof,
+            ctxt_comm_equality_proof::CiphertextCommitmentEqualityProof, fee_proof::FeeSigmaProof,
             validity_proof::AggregatedValidityProof,
         },
         transcript::TranscriptProtocol,
     },
     arrayref::{array_ref, array_refs},
+    bytemuck::bytes_of,
     curve25519_dalek::scalar::Scalar,
     merlin::Transcript,
     std::convert::TryInto,
@@ -60,7 +61,10 @@ lazy_static::lazy_static! {
     pub static ref COMMITMENT_MAX_FEE_BASIS_POINTS: PedersenCommitment = Pedersen::encode(MAX_FEE_BASIS_POINTS);
 }
 
-// #[derive(Clone, Copy, Pod, Zeroable)]
+/// The instruction data that is needed for the `ProofInstruction::TransferWithFee` instruction.
+///
+/// It includes the cryptographic proof as well as the context data information needed to verify
+/// the proof.
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct TransferWithFeeData {
@@ -71,6 +75,7 @@ pub struct TransferWithFeeData {
     pub proof: TransferWithFeeProof,
 }
 
+/// The context data needed to verify a transfer-with-fee proof.
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct TransferWithFeeProofContext {
@@ -193,14 +198,7 @@ impl TransferWithFeeData {
             fee_parameters: fee_parameters.into(),
         };
 
-        let mut transcript = TransferWithFeeProof::transcript_new(
-            &pod_transfer_with_fee_pubkeys,
-            &pod_ciphertext_lo,
-            &pod_ciphertext_hi,
-            &pod_new_source_ciphertext,
-            &pod_fee_ciphertext_lo,
-            &pod_fee_ciphertext_hi,
-        );
+        let mut transcript = context.new_transcript();
 
         let proof = TransferWithFeeProof::new(
             (amount_lo, &ciphertext_lo, &opening_lo),
@@ -349,14 +347,7 @@ impl ZkProofData<TransferWithFeeProofContext> for TransferWithFeeData {
 
     #[cfg(not(target_os = "solana"))]
     fn verify_proof(&self) -> Result<(), ProofError> {
-        let mut transcript = TransferWithFeeProof::transcript_new(
-            &self.context.transfer_with_fee_pubkeys,
-            &self.context.ciphertext_lo,
-            &self.context.ciphertext_hi,
-            &self.context.new_source_ciphertext,
-            &self.context.fee_ciphertext_lo,
-            &self.context.fee_ciphertext_hi,
-        );
+        let mut transcript = self.context.new_transcript();
 
         let ciphertext_lo = self.context.ciphertext_lo.try_into()?;
         let ciphertext_hi = self.context.ciphertext_hi.try_into()?;
@@ -380,13 +371,34 @@ impl ZkProofData<TransferWithFeeProofContext> for TransferWithFeeData {
     }
 }
 
-// #[derive(Clone, Copy, Pod, Zeroable)]
+#[allow(non_snake_case)]
+#[cfg(not(target_os = "solana"))]
+impl TransferWithFeeProofContext {
+    fn new_transcript(&self) -> Transcript {
+        let mut transcript = Transcript::new(b"transfer-with-fee-proof");
+        transcript.append_message(b"ciphertext-lo", bytes_of(&self.ciphertext_lo));
+        transcript.append_message(b"ciphertext-hi", bytes_of(&self.ciphertext_hi));
+        transcript.append_message(
+            b"transfer-with-fee-pubkeys",
+            bytes_of(&self.transfer_with_fee_pubkeys),
+        );
+        transcript.append_message(
+            b"new-source-ciphertext",
+            bytes_of(&self.new_source_ciphertext),
+        );
+        transcript.append_message(b"fee-ciphertext-lo", bytes_of(&self.fee_ciphertext_lo));
+        transcript.append_message(b"fee-ciphertext-hi", bytes_of(&self.fee_ciphertext_hi));
+        transcript.append_message(b"fee-parameters", bytes_of(&self.fee_parameters));
+        transcript
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct TransferWithFeeProof {
     pub new_source_commitment: pod::PedersenCommitment,
     pub claimed_commitment: pod::PedersenCommitment,
-    pub equality_proof: pod::CtxtCommEqualityProof,
+    pub equality_proof: pod::CiphertextCommitmentEqualityProof,
     pub ciphertext_amount_validity_proof: pod::AggregatedValidityProof,
     pub fee_sigma_proof: pod::FeeSigmaProof,
     pub fee_ciphertext_validity_proof: pod::AggregatedValidityProof,
@@ -396,56 +408,6 @@ pub struct TransferWithFeeProof {
 #[allow(non_snake_case)]
 #[cfg(not(target_os = "solana"))]
 impl TransferWithFeeProof {
-    fn transcript_new(
-        transfer_with_fee_pubkeys: &pod::TransferWithFeePubkeys,
-        ciphertext_lo: &pod::TransferAmountEncryption,
-        ciphertext_hi: &pod::TransferAmountEncryption,
-        new_source_ciphertext: &pod::ElGamalCiphertext,
-        fee_ciphertext_lo: &pod::FeeEncryption,
-        fee_ciphertext_hi: &pod::FeeEncryption,
-    ) -> Transcript {
-        let mut transcript = Transcript::new(b"FeeProof");
-
-        transcript.append_pubkey(b"pubkey-source", &transfer_with_fee_pubkeys.source_pubkey);
-        transcript.append_pubkey(
-            b"pubkey-dest",
-            &transfer_with_fee_pubkeys.destination_pubkey,
-        );
-        transcript.append_pubkey(b"pubkey-auditor", &transfer_with_fee_pubkeys.auditor_pubkey);
-        transcript.append_pubkey(
-            b"withdraw_withheld_authority_pubkey",
-            &transfer_with_fee_pubkeys.withdraw_withheld_authority_pubkey,
-        );
-
-        transcript.append_commitment(b"comm-lo-amount", &ciphertext_lo.commitment);
-        transcript.append_handle(b"handle-lo-source", &ciphertext_lo.source_handle);
-        transcript.append_handle(b"handle-lo-dest", &ciphertext_lo.destination_handle);
-        transcript.append_handle(b"handle-lo-auditor", &ciphertext_lo.auditor_handle);
-
-        transcript.append_commitment(b"comm-hi-amount", &ciphertext_hi.commitment);
-        transcript.append_handle(b"handle-hi-source", &ciphertext_hi.source_handle);
-        transcript.append_handle(b"handle-hi-dest", &ciphertext_hi.destination_handle);
-        transcript.append_handle(b"handle-hi-auditor", &ciphertext_hi.auditor_handle);
-
-        transcript.append_ciphertext(b"ctxt-new-source", new_source_ciphertext);
-
-        transcript.append_commitment(b"comm-fee-lo", &fee_ciphertext_lo.commitment);
-        transcript.append_handle(b"handle-fee-lo-dest", &fee_ciphertext_lo.destination_handle);
-        transcript.append_handle(
-            b"handle-fee-lo-auditor",
-            &fee_ciphertext_lo.withdraw_withheld_authority_handle,
-        );
-
-        transcript.append_commitment(b"comm-fee-hi", &fee_ciphertext_hi.commitment);
-        transcript.append_handle(b"handle-fee-hi-dest", &fee_ciphertext_hi.destination_handle);
-        transcript.append_handle(
-            b"handle-fee-hi-auditor",
-            &fee_ciphertext_hi.withdraw_withheld_authority_handle,
-        );
-
-        transcript
-    }
-
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::many_single_char_names)]
     pub fn new(
@@ -472,11 +434,11 @@ impl TransferWithFeeProof {
         transcript.append_commitment(b"commitment-new-source", &pod_new_source_commitment);
 
         // generate equality_proof
-        let equality_proof = CtxtCommEqualityProof::new(
+        let equality_proof = CiphertextCommitmentEqualityProof::new(
             source_keypair,
             new_source_ciphertext,
-            source_new_balance,
             &opening_source,
+            source_new_balance,
             transcript,
         );
 
@@ -602,7 +564,7 @@ impl TransferWithFeeProof {
         let new_source_commitment: PedersenCommitment = self.new_source_commitment.try_into()?;
         let claimed_commitment: PedersenCommitment = self.claimed_commitment.try_into()?;
 
-        let equality_proof: CtxtCommEqualityProof = self.equality_proof.try_into()?;
+        let equality_proof: CiphertextCommitmentEqualityProof = self.equality_proof.try_into()?;
         let ciphertext_amount_validity_proof: AggregatedValidityProof =
             self.ciphertext_amount_validity_proof.try_into()?;
         let fee_sigma_proof: FeeSigmaProof = self.fee_sigma_proof.try_into()?;

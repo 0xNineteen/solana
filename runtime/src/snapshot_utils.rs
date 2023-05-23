@@ -5,12 +5,13 @@ use {
             AccountShrinkThreshold, AccountStorageEntry, AccountsDbConfig, AtomicAppendVecId,
             CalcAccountsHashDataSource,
         },
+        accounts_file::AccountsFileError,
         accounts_hash::AccountsHash,
         accounts_index::AccountSecondaryIndexes,
         accounts_update_notifier_interface::AccountsUpdateNotifier,
         append_vec::AppendVec,
         bank::{Bank, BankFieldsToDeserialize, BankSlotDelta},
-        builtins::Builtins,
+        builtins::BuiltinPrototype,
         hardened_unpack::{
             streaming_unpack_snapshot, unpack_snapshot, ParallelSelector, UnpackError,
             UnpackedAppendVecMap,
@@ -307,6 +308,9 @@ pub(crate) struct StorageAndNextAppendVecId {
 pub enum SnapshotError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("AccountsFile error: {0}")]
+    AccountsFileError(#[from] AccountsFileError),
 
     #[error("serialization error: {0}")]
     Serialize(#[from] bincode::Error),
@@ -1475,7 +1479,7 @@ pub fn bank_from_snapshot_archives(
     genesis_config: &GenesisConfig,
     runtime_config: &RuntimeConfig,
     debug_keys: Option<Arc<HashSet<Pubkey>>>,
-    additional_builtins: Option<&Builtins>,
+    additional_builtins: Option<&[BuiltinPrototype]>,
     account_secondary_indexes: AccountSecondaryIndexes,
     limit_load_slot_count_from_snapshot: Option<usize>,
     shrink_ratio: AccountShrinkThreshold,
@@ -1594,7 +1598,7 @@ pub fn bank_from_latest_snapshot_archives(
     genesis_config: &GenesisConfig,
     runtime_config: &RuntimeConfig,
     debug_keys: Option<Arc<HashSet<Pubkey>>>,
-    additional_builtins: Option<&Builtins>,
+    additional_builtins: Option<&[BuiltinPrototype]>,
     account_secondary_indexes: AccountSecondaryIndexes,
     limit_load_slot_count_from_snapshot: Option<usize>,
     shrink_ratio: AccountShrinkThreshold,
@@ -1689,7 +1693,7 @@ pub fn bank_from_snapshot_dir(
     genesis_config: &GenesisConfig,
     runtime_config: &RuntimeConfig,
     debug_keys: Option<Arc<HashSet<Pubkey>>>,
-    additional_builtins: Option<&Builtins>,
+    additional_builtins: Option<&[BuiltinPrototype]>,
     account_secondary_indexes: AccountSecondaryIndexes,
     limit_load_slot_count_from_snapshot: Option<usize>,
     shrink_ratio: AccountShrinkThreshold,
@@ -1757,7 +1761,7 @@ pub fn bank_from_latest_snapshot_dir(
     runtime_config: &RuntimeConfig,
     account_paths: &[PathBuf],
     debug_keys: Option<Arc<HashSet<Pubkey>>>,
-    additional_builtins: Option<&Builtins>,
+    additional_builtins: Option<&[BuiltinPrototype]>,
     account_secondary_indexes: AccountSecondaryIndexes,
     limit_load_slot_count_from_snapshot: Option<usize>,
     shrink_ratio: AccountShrinkThreshold,
@@ -2599,7 +2603,7 @@ fn rebuild_bank_from_unarchived_snapshots(
     genesis_config: &GenesisConfig,
     runtime_config: &RuntimeConfig,
     debug_keys: Option<Arc<HashSet<Pubkey>>>,
-    additional_builtins: Option<&Builtins>,
+    additional_builtins: Option<&[BuiltinPrototype]>,
     account_secondary_indexes: AccountSecondaryIndexes,
     limit_load_slot_count_from_snapshot: Option<usize>,
     shrink_ratio: AccountShrinkThreshold,
@@ -2695,7 +2699,7 @@ fn rebuild_bank_from_snapshot(
     genesis_config: &GenesisConfig,
     runtime_config: &RuntimeConfig,
     debug_keys: Option<Arc<HashSet<Pubkey>>>,
-    additional_builtins: Option<&Builtins>,
+    additional_builtins: Option<&[BuiltinPrototype]>,
     account_secondary_indexes: AccountSecondaryIndexes,
     limit_load_slot_count_from_snapshot: Option<usize>,
     shrink_ratio: AccountShrinkThreshold,
@@ -2986,6 +2990,23 @@ pub fn purge_old_bank_snapshots(
             .rev()
             .skip(num_bank_snapshots_to_retain),
     );
+}
+
+/// At startup, purge old (i.e. unusable) bank snapshots
+///
+/// Only a single bank snapshot could be needed at startup (when using fast boot), so
+/// retain the highest bank snapshot "post", and purge the rest.
+pub fn purge_old_bank_snapshots_at_startup(bank_snapshots_dir: impl AsRef<Path>) {
+    purge_old_bank_snapshots(&bank_snapshots_dir, 0, Some(BankSnapshotType::Pre));
+    purge_old_bank_snapshots(&bank_snapshots_dir, 1, Some(BankSnapshotType::Post));
+
+    let highest_bank_snapshot_post = get_highest_bank_snapshot_post(&bank_snapshots_dir);
+    if let Some(highest_bank_snapshot_post) = highest_bank_snapshot_post {
+        debug!(
+            "Retained bank snapshot for slot {}, and purged the rest.",
+            highest_bank_snapshot_post.slot
+        );
+    }
 }
 
 /// Purges bank snapshots that are older than `slot`
@@ -5639,5 +5660,23 @@ mod tests {
         let bank_snapshots_after = get_bank_snapshots(&bank_snapshots_dir);
         assert_eq!(bank_snapshots_before.len(), bank_snapshots_after.len() + 9);
         assert!(bank_snapshots_after.is_empty());
+    }
+
+    #[test]
+    fn test_purge_old_bank_snapshots_at_startup() {
+        let genesis_config = GenesisConfig::default();
+        let bank_snapshots_dir = tempfile::TempDir::new().unwrap();
+
+        // The bank must stay in scope to ensure the temp dirs that it holds are not dropped
+        let _bank = create_snapshot_dirs_for_tests(&genesis_config, &bank_snapshots_dir, 9, 6);
+
+        purge_old_bank_snapshots_at_startup(&bank_snapshots_dir);
+
+        let bank_snapshots_pre = get_bank_snapshots_pre(&bank_snapshots_dir);
+        assert!(bank_snapshots_pre.is_empty());
+
+        let bank_snapshots_post = get_bank_snapshots_post(&bank_snapshots_dir);
+        assert_eq!(bank_snapshots_post.len(), 1);
+        assert_eq!(bank_snapshots_post.first().unwrap().slot, 6);
     }
 }
