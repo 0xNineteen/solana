@@ -11,6 +11,6 @@
 
 # This Fork's Modifications 
 
-- run a local cluster of >>1 node: `cd validator/ && bash run_cluster.sh`
+- run a local cluster of >>1 node: `cd validator/ && bash run_cluster.sh $NUM_NODES`
   - required: changes to genesis block configuration (so each node has stake and is part of the leader schedule) - see `initialize_ledger`
 
