@@ -1,5 +1,6 @@
 //! The `rpc` module implements the Solana RPC interface.
 
+use byteorder::{ByteOrder, LittleEndian};
 use solana_account_decoder::{UiAccountData, parse_stake::StakeAccountType};
 use solana_sdk::message::AccountKeys;
 use solana_transaction_status::{BlockHeader, EncodedTransaction, UiInstruction};
@@ -1077,120 +1078,41 @@ impl JsonRpcRequestProcessor {
         slot: Slot,
         config: Option<RpcEncodingConfigWrapper<RpcBlockConfig>>,
     ) -> Result<BlockHeader> {
-        const VOTE_PROGRAM_ID: &str = "Vote111111111111111111111111111111111111111";
-        let block = self.get_block(slot, config).await;
-        let mut block_header: BlockHeader = BlockHeader::default();
-
-        for outer_txn in block.unwrap().unwrap().transactions.unwrap() {
-            match outer_txn.transaction {
-                EncodedTransaction::Json(inner_txn) => {
-                    match inner_txn.message {
-                        solana_transaction_status::UiMessage::Parsed(message) => {
-                            let aks = message
-                                .account_keys
-                                .clone()
-                                .into_iter()
-                                .map(|key| key.pubkey)
-                                .collect_vec();
-                            if aks.contains(&VOTE_PROGRAM_ID.to_string()) {
-                                let vote_signature = Some(inner_txn.signatures[0].clone());
-                                let validator_identity;
-                                let mut validator_stake = None;
-
-                                let ixdata = message.instructions[0].clone();
-
-                                match ixdata {
-                                    UiInstruction::Parsed(ixc) => {
-                                        let static_keys = message
-                                            .account_keys
-                                            .clone()
-                                            .into_iter()
-                                            .map(|k| Pubkey::from_str(&k.pubkey.as_str()).unwrap())
-                                            .collect::<Vec<Pubkey>>();
-                                        let acc_keys = AccountKeys::new(&static_keys, None);
-
-                                        validator_identity =
-                                            Some(message.account_keys.get(0).unwrap());
-                                        let stake_account = self.get_account_info(
-                                            &Pubkey::from_str(
-                                                message.account_keys[1].pubkey.as_str(),
-                                            )
-                                            .unwrap(),
-                                            Some(RpcAccountInfoConfig {
-                                                encoding: Some(UiAccountEncoding::JsonParsed),
-                                                data_slice: None,
-                                                commitment: None,
-                                                min_context_slot: Some(1),
-                                            }), // Seems like we have to pass a config here instead of a None
-                                        );
-                                        // Error is returned here:==> stakeacc Err(Error { code: InvalidRequest, message: "Encoded binary (base 58) data should be less than 128 bytes, please use Base64 encoding.", data: None })
-                                        // Passing the Base64 config works ig?
-                                        let stake_acc = stake_account.unwrap().value.unwrap().data;
-                                        let get_all_stake_accs = self.get_program_accounts(
-                                            &Pubkey::from_str(
-                                                &"Stake11111111111111111111111111111111111111",
-                                            )
-                                            .unwrap(),
-                                            Some(RpcAccountInfoConfig {
-                                                encoding: Some(UiAccountEncoding::JsonParsed),
-                                                data_slice: None,
-                                                commitment: None,
-                                                min_context_slot: Some(1),
-                                            }),
-                                            vec![],
-                                            false,
-                                        );
-                                        let stakes = get_all_stake_accs.unwrap();
-                                        if let OptionalContext::NoContext(stks) = stakes {
-                                            for stk in stks {
-                                                if let UiAccountData::Json(stka) = stk.account.data
-                                                {
-                                                    let p: solana_account_decoder::parse_stake::StakeAccountType =
-                                                        serde_json::from_value(stka.parsed)
-                                                            .unwrap();
-
-                                                    match p {
-                                                        StakeAccountType::Delegated(dps) => {
-                                                            validator_stake = Some(
-                                                                dps.stake
-                                                                    .unwrap()
-                                                                    .delegation
-                                                                    .stake
-                                                                    .parse::<u64>()
-                                                                    .unwrap(),
-                                                            )
-                                                        }
-                                                        StakeAccountType::Initialized(ips) => {}
-                                                        _ => {
-                                                            validator_stake = None;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        block_header.validator_identity.push(Some(
-                                            Pubkey::from_str(
-                                                validator_identity.unwrap().pubkey.as_str(),
-                                            )
-                                            .unwrap(),
-                                        ));
-                                        block_header.validator_stake.push(validator_stake);
-                                        block_header.vote_signature.push(vote_signature);
-                                    }
-                                    _ => (),
-                                }
-                            }
-                        }
-                        _ => {
-                            error!("failing here {:?}", inner_txn.message);
-                        }
-                    }
-                }
-                _ => (),
-            };
+        let slot_entries = self.blockstore.get_slot_entries_with_shred_info(slot, 0, false);
+        if slot_entries.is_err() { 
+            return Err(RpcCustomError::BlockNotAvailable { slot }.into());
         }
-        Ok(block_header)
+        let (entries, _, is_full) = slot_entries.unwrap();
+        
+        // need full shreds
+        if !is_full { 
+            return Err(RpcCustomError::BlockNotAvailable { slot }.into());
+        }
+
+        let bank_forks = self.bank_forks.read().unwrap();
+        let bank = bank_forks.get(slot).unwrap();
+
+        // bank needs to be fully processed
+        if !bank.is_complete() { 
+            return Err(RpcCustomError::BlockNotAvailable { slot }.into()); 
+        }
+
+        let parent_hash = bank.parent_hash();
+        let accounts_delta_hash = bank
+            .rc
+            .accounts
+            .accounts_db
+            .calculate_accounts_delta_hash(slot).0;
+
+        let mut signature_count_buf = [0u8; 8];
+        LittleEndian::write_u64(&mut signature_count_buf[..], bank.signature_count());
+
+        Ok(BlockHeader { 
+            entries,
+            parent_hash, 
+            accounts_delta_hash, 
+            signature_count_buf,
+        })
     }
 
     pub async fn get_block(

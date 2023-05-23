@@ -414,7 +414,7 @@ pub fn broadcast_shreds(
             update_peer_stats(&cluster_nodes, last_datapoint_submit);
             shreds.filter_map(move |shred| {
                 cluster_nodes
-                    .get_broadcast_peer(&shred.id())?
+                    .get_broadcast_peer(&shred.id())? // random peer based on stake
                     .tvu(Protocol::UDP)
                     .ok()
                     .filter(|addr| socket_addr_space.check(addr))

@@ -3663,6 +3663,7 @@ impl Bank {
         );
 
         if self.is_block_boundary(self.tick_height.load(Relaxed) + 1) {
+            // println!("Bank register_tick: blockhash for slot {} is {}", self.slot, hash);
             self.register_recent_blockhash(hash);
         }
 
@@ -6529,11 +6530,14 @@ impl Bank {
         let mut signature_count_buf = [0u8; 8];
         LittleEndian::write_u64(&mut signature_count_buf[..], self.signature_count());
 
+        let last_blockhash = self.last_blockhash();
+        // println!("Bank hash_internal: slot {:?} last_blockhash: {:?}", self.slot, last_blockhash);
+
         let mut hash = hashv(&[
             self.parent_hash.as_ref(),
             accounts_delta_hash.0.as_ref(),
             &signature_count_buf,
-            self.last_blockhash().as_ref(),
+            last_blockhash.as_ref(),
         ]);
 
         let epoch_accounts_hash = self.should_include_epoch_accounts_hash().then(|| {

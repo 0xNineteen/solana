@@ -474,6 +474,7 @@ fn process_entries(
     let mut batches = vec![];
     let mut tick_hashes = vec![];
     let mut rng = thread_rng();
+    // println!("processing entries for slot {}...", bank.slot());
 
     for ReplayEntry {
         entry,
@@ -1175,6 +1176,7 @@ fn confirm_slot_entries(
     let last_entry_hash = entries.last().map(|e| e.hash);
     let verifier = if !skip_verification {
         datapoint_debug!("verify-batch-size", ("size", num_entries as i64, i64));
+        // verifies teh POH ticks / mixins 
         let entry_state = entries.start_verify(&progress.last_entry, recyclers.clone());
         if entry_state.status() == EntryVerificationStatus::Failure {
             warn!("Ledger proof of history failed at slot: {}", slot);

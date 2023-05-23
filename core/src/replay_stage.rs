@@ -2100,6 +2100,7 @@ impl ReplayStage {
             datapoint_info!("replay_stage-voted_empty_bank", ("slot", bank.slot(), i64));
         }
         trace!("handle votable bank {}", bank.slot());
+        // vote tx is created here and stored in tower
         let new_root = tower.record_bank_vote(bank, vote_account_pubkey);
 
         if let Some(new_root) = new_root {
@@ -2423,7 +2424,7 @@ impl ReplayStage {
             bank,
             vote_account_pubkey,
             authorized_voter_keypairs,
-            tower.last_vote(),
+            tower.last_vote(), // this is the vote tx
             switch_fork_decision,
             vote_signatures,
             has_new_vote_been_rooted,
@@ -2670,6 +2671,9 @@ impl ReplayStage {
                     prioritization_fee_cache,
                 );
                 replay_blockstore_time.stop();
+                println!("replay result: {:?} for slot {}", blockstore_result, bank.slot());
+                println!("is bank complete: {:?}", bank.is_complete());
+
                 replay_result.replay_result = Some(blockstore_result);
                 replay_timing.replay_blockstore_us += replay_blockstore_time.as_us();
             }
@@ -3690,6 +3694,8 @@ impl ReplayStage {
             .collect();
         let mut generate_new_bank_forks_get_slots_since =
             Measure::start("generate_new_bank_forks_get_slots_since");
+        // these are the slots which we still are expecting to process 
+        // frozen = cant modify or change the state (read only)
         let next_slots = blockstore
             .get_slots_since(&frozen_bank_slots)
             .expect("Db error");

@@ -8,8 +8,10 @@ use {
         parse_instruction::{parse, ParsedInstruction},
     },
     base64::{prelude::BASE64_STANDARD, Engine},
+    solana_entry::entry::Entry,
     solana_account_decoder::parse_token::UiTokenAmount,
     solana_sdk::{
+        hash::Hash,
         clock::{Slot, UnixTimestamp},
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
@@ -796,9 +798,10 @@ pub struct UiConfirmedBlock {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockHeader {
-    pub vote_signature: Vec<Option<String>>,
-    pub validator_identity: Vec<Option<Pubkey>>,
-    pub validator_stake: Vec<Option<u64>>,
+    pub entries: Vec<Entry>,
+    pub parent_hash: Hash, 
+    pub accounts_delta_hash: Hash, 
+    pub signature_count_buf: [u8; 8],
 }
 
 #[derive(Clone, Debug, PartialEq)]
