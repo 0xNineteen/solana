@@ -1076,7 +1076,7 @@ impl JsonRpcRequestProcessor {
     pub async fn get_block_headers(
         &self,
         slot: Slot,
-        config: Option<RpcEncodingConfigWrapper<RpcBlockConfig>>,
+        _config: Option<RpcEncodingConfigWrapper<RpcBlockConfig>>,
     ) -> Result<BlockHeader> {
         let slot_entries = self.blockstore.get_slot_entries_with_shred_info(slot, 0, false);
         if slot_entries.is_err() { 
@@ -1107,11 +1107,14 @@ impl JsonRpcRequestProcessor {
         let mut signature_count_buf = [0u8; 8];
         LittleEndian::write_u64(&mut signature_count_buf[..], bank.signature_count());
 
+        let last_blockhash = bank.last_blockhash();
+
         Ok(BlockHeader { 
             entries,
             parent_hash, 
             accounts_delta_hash, 
             signature_count_buf,
+            last_blockhash,
         })
     }
 
