@@ -2,6 +2,7 @@
 
 use byteorder::{ByteOrder, LittleEndian};
 use solana_account_decoder::{UiAccountData, parse_stake::StakeAccountType};
+use solana_entry::entry::EntrySlice;
 use solana_sdk::message::AccountKeys;
 use solana_transaction_status::{BlockHeader, EncodedTransaction, UiInstruction};
 
@@ -1075,22 +1076,28 @@ impl JsonRpcRequestProcessor {
 
     pub async fn get_block_headers(
         &self,
-        slot: Slot,
-        config: Option<RpcEncodingConfigWrapper<RpcBlockConfig>>,
-    ) -> Result<BlockHeader> {
+        slot: Slot
+    ) -> Result<Vec<u8>> {
+        println!("get_block_headers");
+
         let slot_entries = self.blockstore.get_slot_entries_with_shred_info(slot, 0, false);
         if slot_entries.is_err() { 
             return Err(RpcCustomError::BlockNotAvailable { slot }.into());
         }
         let (entries, _, is_full) = slot_entries.unwrap();
-        
+
         // need full shreds
         if !is_full { 
             return Err(RpcCustomError::BlockNotAvailable { slot }.into());
         }
 
         let bank_forks = self.bank_forks.read().unwrap();
-        let bank = bank_forks.get(slot).unwrap();
+        let bank = bank_forks.get(slot);
+
+        if bank.is_none() {
+            return Err(RpcCustomError::BlockNotAvailable { slot }.into());
+        }
+        let bank = bank.unwrap();
 
         // bank needs to be fully processed
         if !bank.is_complete() { 
@@ -1107,15 +1114,26 @@ impl JsonRpcRequestProcessor {
         let mut signature_count_buf = [0u8; 8];
         LittleEndian::write_u64(&mut signature_count_buf[..], bank.signature_count());
 
-        let last_blockhash = bank.last_blockhash();
+        // get start_hash for the slot (will be last entry from slot - 1)
+        let prev_slot_entries = self.blockstore.get_slot_entries_with_shred_info(slot - 1, 0, false);
+        if prev_slot_entries.is_err() { 
+            return Err(RpcCustomError::BlockNotAvailable { slot }.into());
+        }
+        let (prev_entries, _, _) = prev_slot_entries.unwrap();
+        let last_blockhash = prev_entries.last().unwrap().hash;
 
-        Ok(BlockHeader { 
+        println!("success response ...");
+
+        let resp = BlockHeader { 
             entries,
             parent_hash, 
             accounts_delta_hash, 
             signature_count_buf,
             last_blockhash,
-        })
+        };
+        let resp = bincode::serialize(&resp).unwrap();
+
+        Ok(resp)
     }
 
     pub async fn get_block(
@@ -3390,8 +3408,7 @@ pub mod rpc_full {
             &self,
             meta: Self::Metadata,
             slot: Slot,
-            config: Option<RpcEncodingConfigWrapper<RpcBlockConfig>>,
-        ) -> BoxFuture<Result<BlockHeader>>;
+        ) -> BoxFuture<Result<Vec<u8>>>;
 
         #[rpc(meta, name = "getBlockTime")]
         fn get_block_time(
@@ -3888,11 +3905,10 @@ pub mod rpc_full {
         fn get_block_headers(
             &self,
             meta: Self::Metadata,
-            slot: Slot,
-            config: Option<RpcEncodingConfigWrapper<RpcBlockConfig>>,
-        ) -> BoxFuture<Result<BlockHeader>> {
+            slot: Slot
+        ) -> BoxFuture<Result<Vec<u8>>> {
             debug!("get_block_headers rpc request received: {:?}", slot);
-            Box::pin(async move { meta.get_block_headers(slot, config).await })
+            Box::pin(async move { meta.get_block_headers(slot).await })
         }
 
         fn get_blocks(
