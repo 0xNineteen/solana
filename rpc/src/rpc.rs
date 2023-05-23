@@ -1076,7 +1076,7 @@ impl JsonRpcRequestProcessor {
     pub async fn get_block_headers(
         &self,
         slot: Slot,
-        _config: Option<RpcEncodingConfigWrapper<RpcBlockConfig>>,
+        config: Option<RpcEncodingConfigWrapper<RpcBlockConfig>>,
     ) -> Result<BlockHeader> {
         let slot_entries = self.blockstore.get_slot_entries_with_shred_info(slot, 0, false);
         if slot_entries.is_err() { 
