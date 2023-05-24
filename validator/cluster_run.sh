@@ -6,7 +6,7 @@ ledger_dir=ledger
 n_nodes="${1:-1}"
 base_port=8000
 rando_path=$ledger_dir/rando_keys
-n_randos=5
+n_randos=3
 
 echo setting up $n_nodes nodes ...
 
@@ -50,7 +50,10 @@ for ((i=1; i<=n_nodes; i++)); do
     processes[$i-1]=$!
 done
 
-sleep 5 # wait for node to start up
+# Wait for Ctrl+C
+trap "echo 'Stopping nodes...'; kill ${processes[*]}; exit" SIGINT
+
+sleep 7 # wait for node to start up
 
 # generate random keypairs with SOL 
 echo airdroping random keys ...
@@ -61,9 +64,6 @@ for ((i=1; i<=n_randos; i++)); do
     solana-keygen new --no-passphrase -so $rando_path/${i}.json
     solana airdrop 100 $(solana-keygen pubkey $rando_path/${i}.json)
 done
-
-# Wait for Ctrl+C
-trap "echo 'Stopping nodes...'; kill ${processes[*]}; exit" SIGINT
 
 # Keep the script running until Ctrl+C is received
 echo cluster running...
