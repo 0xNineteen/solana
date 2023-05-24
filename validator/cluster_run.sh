@@ -47,6 +47,19 @@ for ((i=1; i<=n_nodes; i++)); do
     processes[$i-1]=$!
 done
 
+sleep 5 # wait for node to start up
+
+# generate random keypairs with SOL 
+echo airdroping random keys ...
+solana config set --url http://127.0.0.1:$((base_port + 2))
+solana config get
+n_randos=5 
+rando_path=$ledger_dir/rando_keys/
+for ((i=1; i<=n_randos; i++)); do
+    solana-keygen new --no-passphrase -so $rando_path/${i}.json
+    solana airdrop 100 $(solana-keygen pubkey $rando_path/${i}.json)
+done
+
 # Wait for Ctrl+C
 trap "echo 'Stopping nodes...'; kill ${processes[*]}; exit" SIGINT
 
