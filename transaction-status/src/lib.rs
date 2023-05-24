@@ -802,7 +802,7 @@ pub struct BlockHeader {
     pub parent_hash: Hash, 
     pub accounts_delta_hash: Hash, 
     pub signature_count_buf: [u8; 8],
-    pub last_blockhash: Hash,
+    pub start_blockhash: Hash,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -1080,6 +1080,11 @@ impl JsonRpcRequestProcessor {
     ) -> Result<Vec<u8>> {
         println!("get_block_headers");
 
+        if slot == 0 { 
+            // dont support genesis headers
+            return Err(RpcCustomError::BlockNotAvailable { slot }.into());
+        }
+
         let slot_entries = self.blockstore.get_slot_entries_with_shred_info(slot, 0, false);
         if slot_entries.is_err() { 
             return Err(RpcCustomError::BlockNotAvailable { slot }.into());
@@ -1120,8 +1125,7 @@ impl JsonRpcRequestProcessor {
             return Err(RpcCustomError::BlockNotAvailable { slot }.into());
         }
         let (prev_entries, _, _) = prev_slot_entries.unwrap();
-        let last_blockhash = prev_entries.last().unwrap().hash;
-
+        let start_blockhash = prev_entries.last().unwrap().hash;
         println!("success response ...");
 
         let resp = BlockHeader { 
@@ -1129,7 +1133,7 @@ impl JsonRpcRequestProcessor {
             parent_hash, 
             accounts_delta_hash, 
             signature_count_buf,
-            last_blockhash,
+            start_blockhash,
         };
         let resp = bincode::serialize(&resp).unwrap();
 

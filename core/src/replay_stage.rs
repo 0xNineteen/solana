@@ -2671,8 +2671,6 @@ impl ReplayStage {
                     prioritization_fee_cache,
                 );
                 replay_blockstore_time.stop();
-                println!("replay result: {:?} for slot {}", blockstore_result, bank.slot());
-                println!("is bank complete: {:?}", bank.is_complete());
 
                 replay_result.replay_result = Some(blockstore_result);
                 replay_timing.replay_blockstore_us += replay_blockstore_time.as_us();
