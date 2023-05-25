@@ -808,17 +808,26 @@ pub struct BlockHeader {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum EntryProof { 
-    FullEntry(Entry), 
+    MerkleEntry(MerkleEntry), 
     PartialEntry(PartialEntry),
 }
 
 impl EntryProof { 
     pub fn hash(&self) -> Hash {
         match self {
-            Self::FullEntry(entry) => entry.hash,
+            Self::MerkleEntry(entry) => entry.hash,
             Self::PartialEntry(partial_entry) => partial_entry.hash,
         }
     }
+}
+
+use solana_merkle_tree::merkle_tree::SolidProof;
+
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Clone)]
+pub struct MerkleEntry {
+    pub hash: Hash,
+    pub num_hashes: u64,
+    pub proof: SolidProof,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Clone)]

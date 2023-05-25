@@ -4,7 +4,8 @@ use byteorder::{ByteOrder, LittleEndian};
 use solana_account_decoder::{UiAccountData, parse_stake::StakeAccountType};
 use solana_entry::entry::{EntrySlice, hash_transactions};
 use solana_sdk::message::AccountKeys;
-use solana_transaction_status::{BlockHeader, EncodedTransaction, UiInstruction, EntryProof, PartialEntry};
+use solana_transaction_status::{BlockHeader, EncodedTransaction, UiInstruction, EntryProof, PartialEntry, MerkleEntry};
+use solana_merkle_tree::{MerkleTree, merkle_tree::SolidProof};
 
 use {
     crate::{
@@ -1098,7 +1099,25 @@ impl JsonRpcRequestProcessor {
                 tx.signatures.contains(&signature)
             });
             let proof_entry = if contains_sig { 
-                EntryProof::FullEntry(entry.clone())
+                let signatures: Vec<_> = entry.transactions
+                    .iter()
+                    .flat_map(|tx| tx.signatures.iter())
+                    .collect();
+
+                let merkle_tree = MerkleTree::new(&signatures);
+
+                let index = entry.transactions
+                    .iter()
+                    .position(|tx| tx.signatures.contains(&signature))
+                    .unwrap();
+                let proof = merkle_tree.find_path(index).unwrap();
+                let proof: SolidProof = proof.into();
+
+                EntryProof::MerkleEntry(MerkleEntry { 
+                    hash: entry.hash,
+                    num_hashes: entry.num_hashes,
+                    proof,
+                })
             } else { 
                 let tx_hash = if !entry.transactions.is_empty() {
                     Some(hash_transactions(&entry.transactions))

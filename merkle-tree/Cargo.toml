@@ -12,6 +12,7 @@ edition = { workspace = true }
 [dependencies]
 fast-math = { workspace = true }
 solana-program = { workspace = true }
+serde = { workspace = true }
 
 # This can go once the SBF toolchain target Rust 1.42.0+
 [target.bpfel-unknown-unknown.dependencies]

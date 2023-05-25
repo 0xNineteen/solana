@@ -52,6 +52,7 @@ solana-tpu-client = { workspace = true }
 solana-transaction-status = { workspace = true }
 solana-version = { workspace = true }
 solana-vote-program = { workspace = true }
+solana-merkle-tree = { workspace = true }
 spl-token = { workspace = true, features = ["no-entrypoint"] }
 spl-token-2022 = { workspace = true, features = ["no-entrypoint"] }
 stream-cancel = { workspace = true }
