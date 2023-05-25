@@ -2,9 +2,9 @@
 
 use byteorder::{ByteOrder, LittleEndian};
 use solana_account_decoder::{UiAccountData, parse_stake::StakeAccountType};
-use solana_entry::entry::EntrySlice;
+use solana_entry::entry::{EntrySlice, hash_transactions};
 use solana_sdk::message::AccountKeys;
-use solana_transaction_status::{BlockHeader, EncodedTransaction, UiInstruction};
+use solana_transaction_status::{BlockHeader, EncodedTransaction, UiInstruction, EntryProof, PartialEntry};
 
 use {
     crate::{
@@ -1076,9 +1076,9 @@ impl JsonRpcRequestProcessor {
 
     pub async fn get_block_headers(
         &self,
-        slot: Slot
+        slot: Slot,
+        signature: Signature,
     ) -> Result<Vec<u8>> {
-        println!("get_block_headers");
 
         if slot == 0 { 
             // dont support genesis headers
@@ -1090,6 +1090,30 @@ impl JsonRpcRequestProcessor {
             return Err(RpcCustomError::BlockNotAvailable { slot }.into());
         }
         let (entries, _, is_full) = slot_entries.unwrap();
+
+        // only include the required proof data
+        let mut proof_entries = Vec::with_capacity(entries.len());
+        for entry in entries.iter() { 
+            let contains_sig = entry.transactions.iter().any(|tx| { 
+                tx.signatures.contains(&signature)
+            });
+            let proof_entry = if contains_sig { 
+                EntryProof::FullEntry(entry.clone())
+            } else { 
+                let tx_hash = if !entry.transactions.is_empty() {
+                    Some(hash_transactions(&entry.transactions))
+                } else { 
+                    None
+                };
+
+                EntryProof::PartialEntry(PartialEntry { 
+                    hash: entry.hash, 
+                    num_hashes: entry.num_hashes, 
+                    transaction_hash: tx_hash,
+                })
+            };
+            proof_entries.push(proof_entry);
+        }
 
         // need full shreds
         if !is_full { 
@@ -1129,7 +1153,7 @@ impl JsonRpcRequestProcessor {
         println!("success response ...");
 
         let resp = BlockHeader { 
-            entries,
+            entries: proof_entries,
             parent_hash, 
             accounts_delta_hash, 
             signature_count_buf,
@@ -3412,6 +3436,7 @@ pub mod rpc_full {
             &self,
             meta: Self::Metadata,
             slot: Slot,
+            signature: Signature,
         ) -> BoxFuture<Result<Vec<u8>>>;
 
         #[rpc(meta, name = "getBlockTime")]
@@ -3909,10 +3934,11 @@ pub mod rpc_full {
         fn get_block_headers(
             &self,
             meta: Self::Metadata,
-            slot: Slot
+            slot: Slot,
+            signature: Signature,
         ) -> BoxFuture<Result<Vec<u8>>> {
             debug!("get_block_headers rpc request received: {:?}", slot);
-            Box::pin(async move { meta.get_block_headers(slot).await })
+            Box::pin(async move { meta.get_block_headers(slot, signature).await })
         }
 
         fn get_blocks(
