@@ -798,11 +798,43 @@ pub struct UiConfirmedBlock {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockHeader {
-    pub entries: Vec<Entry>,
+    pub entries: Vec<EntryProof>,
     pub parent_hash: Hash, 
     pub accounts_delta_hash: Hash, 
     pub signature_count_buf: [u8; 8],
-    pub last_blockhash: Hash,
+    pub start_blockhash: Hash,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum EntryProof { 
+    MerkleEntry(MerkleEntry), 
+    PartialEntry(PartialEntry),
+}
+
+impl EntryProof { 
+    pub fn hash(&self) -> Hash {
+        match self {
+            Self::MerkleEntry(entry) => entry.hash,
+            Self::PartialEntry(partial_entry) => partial_entry.hash,
+        }
+    }
+}
+
+use solana_merkle_tree::merkle_tree::SolidProof;
+
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Clone)]
+pub struct MerkleEntry {
+    pub hash: Hash,
+    pub num_hashes: u64,
+    pub proof: SolidProof,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Clone)]
+pub struct PartialEntry {
+    pub num_hashes: u64,
+    pub hash: Hash,
+    pub transaction_hash: Option<Hash>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

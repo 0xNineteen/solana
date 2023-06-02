@@ -1,4 +1,5 @@
 use solana_program::hash::{hashv, Hash};
+use serde::{Serialize, Deserialize};
 
 // We need to discern between leaf and intermediate nodes to prevent trivial second
 // pre-image attacks.
@@ -59,6 +60,63 @@ impl<'a> Proof<'a> {
             }
         });
         matches!(result, Some(_))
+    }
+}
+
+// copy-pasta rn (need to remove the references to we can serialize/deserialize)
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct SolidProofEntry(Hash, Option<Hash>, Option<Hash>);
+
+impl SolidProofEntry {
+    pub fn new(
+        target: Hash,
+        left_sibling: Option<Hash>,
+        right_sibling: Option<Hash>,
+    ) -> Self {
+        assert!(left_sibling.is_none() ^ right_sibling.is_none());
+        Self(target, left_sibling, right_sibling)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq, Eq, Clone)]
+pub struct SolidProof(Vec<SolidProofEntry>);
+
+impl SolidProof {
+    pub fn root(&self) -> Option<Hash> { 
+        self.0.last().map(|x| x.0)
+    }
+
+    pub fn push(&mut self, entry: SolidProofEntry) {
+        self.0.push(entry)
+    }
+
+    pub fn verify(&self, candidate: Hash) -> bool {
+        let result = self.0.iter().try_fold(candidate, |candidate, pe| {
+            let lsib = pe.1.unwrap_or(candidate);
+            let rsib = pe.2.unwrap_or(candidate);
+            let hash = hash_intermediate!(lsib, rsib);
+
+            if hash == pe.0 {
+                Some(hash)
+            } else {
+                None
+            }
+        });
+        matches!(result, Some(_))
+    }
+}
+
+impl From<Proof<'_>> for SolidProof { 
+    fn from(proof: Proof) -> Self {
+        let mut solid_proof = Self(vec![]);
+        for entry in proof.0 {
+            solid_proof.push(SolidProofEntry::new(
+                *entry.0,
+                entry.1.map(|x| *x), 
+                entry.2.map(|x| *x),
+            ))
+        }
+        solid_proof
     }
 }
 

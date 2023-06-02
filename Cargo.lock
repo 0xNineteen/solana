@@ -6013,6 +6013,7 @@ dependencies = [
  "fast-math",
  "hex",
  "matches",
+ "serde",
  "solana-program",
 ]
 
@@ -6360,6 +6361,7 @@ dependencies = [
  "solana-gossip",
  "solana-ledger",
  "solana-measure",
+ "solana-merkle-tree",
  "solana-metrics",
  "solana-net-utils",
  "solana-perf",
@@ -6918,6 +6920,7 @@ dependencies = [
  "solana-account-decoder",
  "solana-address-lookup-table-program",
  "solana-entry",
+ "solana-merkle-tree",
  "solana-sdk",
  "spl-associated-token-account",
  "spl-memo",

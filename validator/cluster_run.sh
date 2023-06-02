@@ -3,9 +3,11 @@
 cargo build 
 
 ledger_dir=ledger
-n_nodes="${1:-2}"
+n_nodes="${1:-1}"
 base_port=8000
-declare -a processes=()
+rando_path=$ledger_dir/rando_keys
+n_randos=3
+
 echo setting up $n_nodes nodes ...
 
 # generate keypairs of all validators first
@@ -23,6 +25,7 @@ for ((i=1; i<=n_nodes; i++)); do
 done
 
 # Start the nodes in the background
+declare -a processes=()
 for ((i=1; i<=n_nodes; i++)); do
     port=$((base_port + (i - 1) * 10))
 
@@ -49,6 +52,18 @@ done
 
 # Wait for Ctrl+C
 trap "echo 'Stopping nodes...'; kill ${processes[*]}; exit" SIGINT
+
+sleep 7 # wait for node to start up
+
+# generate random keypairs with SOL 
+echo airdroping random keys ...
+solana config set --url http://127.0.0.1:$((base_port + 2))
+solana config get
+rm -rf $rando_path
+for ((i=1; i<=n_randos; i++)); do
+    solana-keygen new --no-passphrase -so $rando_path/${i}.json
+    solana airdrop 100 $(solana-keygen pubkey $rando_path/${i}.json)
+done
 
 # Keep the script running until Ctrl+C is received
 echo cluster running...
