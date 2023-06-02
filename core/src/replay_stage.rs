@@ -2671,8 +2671,8 @@ impl ReplayStage {
                     prioritization_fee_cache,
                 );
                 replay_blockstore_time.stop();
-                println!("replay result: {:?} for slot {}", blockstore_result, bank.slot());
-                println!("is bank complete: {:?}", bank.is_complete());
+                // println!("replay result: {:?} for slot {}", blockstore_result, bank.slot());
+                // println!("is bank complete: {:?}", bank.is_complete());
 
                 replay_result.replay_result = Some(blockstore_result);
                 replay_timing.replay_blockstore_us += replay_blockstore_time.as_us();
@@ -2766,6 +2766,10 @@ impl ReplayStage {
                 if let Some(transaction_status_sender) = transaction_status_sender {
                     transaction_status_sender.send_transaction_status_freeze_message(bank);
                 }
+
+                let (entries, _, _)  = blockstore.get_slot_entries_with_shred_info(bank.slot(), 0, false).unwrap();
+                entries.iter().for_each(|e| bank.register_entry(e.hash));
+
                 bank.freeze();
                 datapoint_info!(
                     "bank_frozen",

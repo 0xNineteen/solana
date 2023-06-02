@@ -52,7 +52,6 @@ use {
         sync::Mutex,
     },
 };
-use std::{fs::File, io::Write};
 
 const CRDS_SHARDS_BITS: u32 = 12;
 // Number of vote slots to track in an lru-cache for metrics.

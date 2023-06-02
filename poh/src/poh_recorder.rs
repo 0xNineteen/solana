@@ -654,7 +654,10 @@ impl PohRecorder {
             );
 
             for tick in &self.tick_cache[..entry_count] {
+                // bank.register_entry
+                // working_bank.bank.register_entry(tick.0.hash);
                 working_bank.bank.register_tick(&tick.0.hash);
+                // sends to broadcast stage
                 send_result = self.sender.send((working_bank.bank.clone(), tick.clone()));
                 if send_result.is_err() {
                     break;
@@ -877,6 +880,8 @@ impl PohRecorder {
                             hash: poh_entry.hash,
                             transactions,
                         };
+                        // bank.register_entry()
+                        // working_bank.bank.register_entry(entry.hash);
                         let bank_clone = working_bank.bank.clone();
                         self.sender.send((bank_clone, (entry, self.tick_height)))
                     },

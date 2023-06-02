@@ -481,6 +481,8 @@ fn process_entries(
         starting_index,
     } in entries
     {
+        // bank.register_entry
+
         match entry {
             EntryType::Tick(hash) => {
                 // If it's a tick, save it for later
@@ -1195,6 +1197,9 @@ fn confirm_slot_entries(
             bank.verify_transaction(versioned_tx, verification_mode)
         }
     };
+
+    // bank.register_entry
+    // entries.iter().for_each(|e| bank.register_entry(e.hash));
 
     let transaction_verification_start = Instant::now();
     let transaction_verification_result = entry::start_verify_transactions(

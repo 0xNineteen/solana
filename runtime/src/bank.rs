@@ -81,6 +81,7 @@ use {
         transaction_error_metrics::TransactionErrorMetrics,
         vote_account::{VoteAccount, VoteAccountsHashMap},
     },
+    solana_merkle_tree::MerkleTree,
     byteorder::{ByteOrder, LittleEndian},
     dashmap::{DashMap, DashSet},
     log::*,
@@ -737,6 +738,7 @@ impl PartialEq for Bank {
             return true;
         }
         let Self {
+            entry_leaves: _,
             bank_freeze_or_destruction_incremented: _,
             rc: _,
             status_cache: _,
@@ -899,6 +901,8 @@ pub(crate) enum EpochRewardStatus {
 /// are implemented elsewhere for versioning
 #[derive(AbiExample, Debug)]
 pub struct Bank {
+    pub entry_leaves: RwLock<Vec<Hash>>, 
+
     /// References to accounts, parent and signature status
     pub rc: BankRc,
 
@@ -1229,8 +1233,13 @@ impl Bank {
         )
     }
 
+    pub fn register_entry(&self, entry: Hash) { 
+        self.entry_leaves.write().unwrap().push(entry);
+    }
+
     fn default_with_accounts(accounts: Accounts) -> Self {
         let mut bank = Self {
+            entry_leaves: RwLock::new(vec![]),
             bank_freeze_or_destruction_incremented: AtomicBool::default(),
             incremental_snapshot_persistence: None,
             rc: BankRc::new(accounts, Slot::default()),
@@ -1492,6 +1501,7 @@ impl Bank {
         let accounts_data_size_initial = parent.load_accounts_data_size();
         parent.bank_created();
         let mut new = Self {
+            entry_leaves: RwLock::new(vec![]),
             bank_freeze_or_destruction_incremented: AtomicBool::default(),
             incremental_snapshot_persistence: None,
             rc,
@@ -1837,6 +1847,7 @@ impl Bank {
         }
         let feature_set = new();
         let mut bank = Self {
+            entry_leaves: RwLock::new(vec![]),
             incremental_snapshot_persistence: fields.incremental_snapshot_persistence,
             bank_freeze_or_destruction_incremented: AtomicBool::default(),
             rc: bank_rc,
@@ -5053,6 +5064,7 @@ impl Bank {
 
         let mut write_time = Measure::start("write_time");
         let durable_nonce = DurableNonce::from_blockhash(&last_blockhash);
+        // failed transactions are not stored in the accounts cache
         self.rc.accounts.store_cached(
             self.slot(),
             sanitized_txs,
@@ -5118,7 +5130,9 @@ impl Bank {
         );
 
         let mut update_transaction_statuses_time = Measure::start("update_transaction_statuses");
+        // updates caches 
         self.update_transaction_statuses(sanitized_txs, &execution_results);
+        // compute validator rewards 
         let fee_collection_results =
             self.filter_program_errors_and_collect_fee(sanitized_txs, &execution_results);
         update_transaction_statuses_time.stop();
@@ -6540,8 +6554,16 @@ impl Bank {
         let mut signature_count_buf = [0u8; 8];
         LittleEndian::write_u64(&mut signature_count_buf[..], self.signature_count());
 
-        let last_blockhash = self.last_blockhash();
-        // println!("Bank hash_internal: slot {:?} last_blockhash: {:?}", self.slot, last_blockhash);
+        // let last_blockhash = self.last_blockhash();
+
+        let merkle_tree = MerkleTree::new(&self.entry_leaves.read().unwrap());
+        let last_blockhash  = if let Some(root) = merkle_tree.get_root() { 
+            *root
+        } else { 
+            // special case for bank 0 
+            self.last_blockhash()
+        };
+        println!("Bank hash_internal: slot {:?} last_blockhash: {:?}", self.slot, last_blockhash);
 
         let mut hash = hashv(&[
             self.parent_hash.as_ref(),
